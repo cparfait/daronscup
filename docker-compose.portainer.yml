@@ -60,9 +60,8 @@ services:
         condition: service_healthy
     entrypoint: >
       sh -c "
-        npx prisma db push --skip-generate
-        && npx prisma db seed
-        && echo 'Migration + seed terminés'
+        node node_modules/prisma/build/index.js db push --skip-generate
+        && echo 'Migration terminée'
       "
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-daronsfc}:${POSTGRES_PASSWORD:-daronsfc_secret}@db:5432/${POSTGRES_DB:-daronsfc}?schema=public"
