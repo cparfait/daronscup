@@ -138,6 +138,10 @@ export function MatchCardInteractive({
           <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 font-bold uppercase tracking-wider text-red-400">
             <Radio className="size-3 animate-pulse" /> En direct
           </span>
+        ) : locked ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 font-bold uppercase tracking-wider text-red-400">
+            <Radio className="size-3 animate-pulse" /> En cours
+          </span>
         ) : (
           <CountdownTimer target={match.kickoffAt} />
         )}

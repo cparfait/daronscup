@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { SignOutButton } from "@/components/sign-out-button";
+import { EditableName } from "@/components/editable-name";
 import { Flag } from "@/components/flag";
 import {
   getBadges,
@@ -15,7 +16,6 @@ import {
   Trophy,
   Target,
   CheckCircle,
-  Pencil,
   Lock,
   Shield,
   TrendingUp,
@@ -86,18 +86,7 @@ export default async function ProfilePage() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight truncate">
-                {user?.name ?? "Daron anonyme"}
-              </h2>
-              <button
-                type="button"
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-cream)]"
-                title="Modifier le nom"
-              >
-                <Pencil className="size-3.5" />
-              </button>
-            </div>
+            <EditableName initialName={user?.name ?? "Daron anonyme"} />
             <p className="mt-0.5 truncate text-sm text-[var(--color-muted)]">
               {user?.email}
             </p>

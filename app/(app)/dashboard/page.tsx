@@ -145,6 +145,11 @@ export default async function DashboardPage() {
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-2)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)]">
                       Termin\u00e9
                     </span>
+                  ) : new Date(featuredMatch.kickoffAt) <= new Date() ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-400">
+                      <Radio className="size-3 animate-pulse" />
+                      En cours
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-pitch)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-pitch-bright)]">
                       <span className="size-2 animate-pulse rounded-full bg-[var(--color-pitch-bright)]" />
