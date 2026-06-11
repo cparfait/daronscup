@@ -1,0 +1,31 @@
+services:
+  daronsfc_app:
+    image: daronsfc_app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: daronsfc_app
+    restart: unless-stopped
+    environment:
+      # Base — même réseau Docker que daronsfc_db → port interne 5432
+      DATABASE_URL: "postgresql://daronsfc:daronsfc@daronsfc_db:5432/daronsfc?schema=public"
+      DIRECT_URL:   "postgresql://daronsfc:daronsfc@daronsfc_db:5432/daronsfc?schema=public"
+      # Auth
+      AUTH_SECRET:        "CHANGE_MOI_32_CHARS_MINIMUM_XXXXX"
+      NEXTAUTH_URL:       "https://foot.cparfait.ovh"
+      AUTH_GOOGLE_ID:     ""
+      AUTH_GOOGLE_SECRET: ""
+      # API foot
+      FOOTBALL_DATA_TOKEN:       "TON_TOKEN_FOOTBALL_DATA"
+      FOOTBALL_DATA_COMPETITION: "WC"
+    networks:
+      - daronsfc_net   # réseau partagé avec daronsfc_db
+      - proxy_net      # réseau de ton reverse proxy (NPM / Traefik)
+
+networks:
+  daronsfc_net:
+    external: true   # réseau existant — voir : docker network ls
+    name: daronsfc_net
+  proxy_net:
+    external: true   # réseau de ton reverse proxy — adapte le nom
+    name: proxy_net

@@ -1,0 +1,234 @@
+// ─────────────────────────────────────────────
+// Couche d'accès aux données (serveur uniquement).
+//
+// La base (Prisma) est la source de vérité. Chaque getter renvoie un repli
+// vide si la base n'est pas joignable — l'app affiche alors des états vides
+// plutôt que de planter (utile tant que Postgres n'est pas démarré).
+// ─────────────────────────────────────────────
+
+import { prisma } from "@/lib/prisma";
+import type {
+  Match,
+  StandingTeam,
+  LeaderboardEntry,
+  BadgeDef,
+  UserPrediction,
+  UserStats,
+} from "./matches";
+
+type DbMatch = {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeFlag: string;
+  awayFlag: string;
+  kickoffAt: Date;
+  stage: Match["stage"];
+  group: string | null;
+  matchday: number | null;
+  result: { homeScore: number; awayScore: number; status: string } | null;
+};
+
+/** Convertit une ligne Prisma `Match` (avec result) vers le type UI. */
+function toUiMatch(m: DbMatch): Match {
+  return {
+    id: m.id,
+    homeTeam: m.homeTeam,
+    awayTeam: m.awayTeam,
+    homeFlag: m.homeFlag,
+    awayFlag: m.awayFlag,
+    kickoffAt: m.kickoffAt.toISOString(),
+    stage: m.stage,
+    group: m.group,
+    matchday: m.matchday,
+    result:
+      m.result && m.result.status === "FINISHED"
+        ? {
+            homeScore: m.result.homeScore,
+            awayScore: m.result.awayScore,
+            status: "FINISHED",
+          }
+        : undefined,
+  };
+}
+
+/** Tous les matchs, triés par coup d'envoi croissant. */
+export async function getMatches(): Promise<Match[]> {
+  try {
+    const rows = await prisma.match.findMany({
+      include: { result: true },
+      orderBy: { kickoffAt: "asc" },
+    });
+    return rows.map(toUiMatch);
+  } catch {
+    return [];
+  }
+}
+
+/** Un match par son id, ou null. */
+export async function getMatch(id: string): Promise<Match | null> {
+  try {
+    const m = await prisma.match.findUnique({
+      where: { id },
+      include: { result: true },
+    });
+    return m ? toUiMatch(m) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Classements par groupe, calculés depuis les matchs de poule terminés. */
+export async function getStandings(): Promise<Record<string, StandingTeam[]>> {
+  const matches = await getMatches();
+  const groups: Record<string, Map<string, StandingTeam>> = {};
+
+  const ensure = (group: string, team: string, flag: string) => {
+    groups[group] ??= new Map();
+    if (!groups[group].has(team)) {
+      groups[group].set(team, {
+        team,
+        flag,
+        j: 0,
+        g: 0,
+        n: 0,
+        p: 0,
+        bp: 0,
+        bc: 0,
+        pts: 0,
+      });
+    }
+    return groups[group].get(team)!;
+  };
+
+  for (const m of matches) {
+    if (m.stage !== "GROUP" || !m.group) continue;
+    const home = ensure(m.group, m.homeTeam, m.homeFlag);
+    const away = ensure(m.group, m.awayTeam, m.awayFlag);
+    if (!m.result) continue;
+
+    const { homeScore: hs, awayScore: as } = m.result;
+    home.j++;
+    away.j++;
+    home.bp += hs;
+    home.bc += as;
+    away.bp += as;
+    away.bc += hs;
+
+    if (hs > as) {
+      home.g++;
+      home.pts += 3;
+      away.p++;
+    } else if (hs < as) {
+      away.g++;
+      away.pts += 3;
+      home.p++;
+    } else {
+      home.n++;
+      away.n++;
+      home.pts++;
+      away.pts++;
+    }
+  }
+
+  // Tri : points, puis différence de buts, puis buts pour.
+  const out: Record<string, StandingTeam[]> = {};
+  for (const [g, teams] of Object.entries(groups)) {
+    out[g] = [...teams.values()].sort(
+      (a, b) =>
+        b.pts - a.pts || b.bp - b.bc - (a.bp - a.bc) || b.bp - a.bp
+    );
+  }
+  return out;
+}
+
+/** Classement général des joueurs (depuis la table Score). */
+export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
+  try {
+    const scores = await prisma.score.findMany({
+      include: { user: { include: { badges: { include: { badge: true } } } } },
+      orderBy: [{ points: "desc" }, { exactScores: "desc" }],
+    });
+    return scores.map((s, i) => ({
+      rank: i + 1,
+      name: s.user.name ?? "Anonyme",
+      email: s.user.email,
+      points: s.points,
+      exactScores: s.exactScores,
+      correctResults: s.correctResults,
+      badges: s.user.badges.map((b) => b.badge.key),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Catalogue des badges. */
+export async function getBadges(): Promise<BadgeDef[]> {
+  try {
+    const badges = await prisma.badge.findMany();
+    return badges.map((b) => ({
+      key: b.key,
+      label: b.label,
+      emoji: b.emoji,
+      description: b.description,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Statistiques agrégées d'un joueur. */
+export async function getUserStats(userId: string): Promise<UserStats> {
+  const empty: UserStats = {
+    points: 0,
+    exactScores: 0,
+    correctResults: 0,
+    jokersUsed: 0,
+    badges: [],
+  };
+  try {
+    const [score, jokersUsed, badges] = await Promise.all([
+      prisma.score.findUnique({ where: { userId } }),
+      prisma.prediction.count({ where: { userId, joker: true } }),
+      prisma.userBadge.findMany({
+        where: { userId },
+        include: { badge: true },
+      }),
+    ]);
+    return {
+      points: score?.points ?? 0,
+      exactScores: score?.exactScores ?? 0,
+      correctResults: score?.correctResults ?? 0,
+      jokersUsed,
+      badges: badges.map((b) => b.badge.key),
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/** Derniers pronostics d'un joueur, enrichis du match. */
+export async function getUserPredictions(
+  userId: string,
+  limit = 10
+): Promise<UserPrediction[]> {
+  try {
+    const preds = await prisma.prediction.findMany({
+      where: { userId },
+      include: { match: { include: { result: true } } },
+      orderBy: { submittedAt: "desc" },
+      take: limit,
+    });
+    return preds.map((p) => ({
+      matchId: p.matchId,
+      homeScore: p.homeScore,
+      awayScore: p.awayScore,
+      joker: p.joker,
+      comment: p.comment ?? undefined,
+      match: toUiMatch(p.match),
+    }));
+  } catch {
+    return [];
+  }
+}

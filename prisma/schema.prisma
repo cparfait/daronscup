@@ -1,0 +1,217 @@
+// DaronsFC — schéma Prisma
+// Doc: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────
+// Domaine métier
+// ─────────────────────────────────────────────
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String       @unique
+  emailVerified DateTime?
+  image         String? // requis par l'adapter NextAuth (avatar OAuth)
+  avatarUrl     String? // avatar affiché dans l'app (alias métier)
+  passwordHash  String? // auth email/password (null pour comptes OAuth seuls)
+  googleId      String?      @unique
+  role          Role         @default(USER)
+  banned        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  predictions   Prediction[]
+  messages      Message[]
+  reactions     Reaction[]
+  badges        UserBadge[]
+  pushSubs      PushSubscription[]
+  score         Score?
+
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Match {
+  id          String       @id @default(cuid())
+  homeTeam    String
+  awayTeam    String
+  homeFlag    String
+  awayFlag    String
+  kickoffAt   DateTime
+  stage       Stage
+  group       String?
+  matchday    Int? // numéro de journée (pour le joker / filtres)
+  externalId  Int? // id API-Football
+  predictions Prediction[]
+  result      Result?
+
+  @@index([kickoffAt])
+}
+
+model Prediction {
+  id          String   @id @default(cuid())
+  userId      String
+  matchId     String
+  homeScore   Int
+  awayScore   Int
+  joker       Boolean  @default(false)
+  comment     String? // visible uniquement après coup d'envoi (anti-influence)
+  pointsAwarded Int?   // null tant que le match n'est pas terminé
+  submittedAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([matchId])
+}
+
+model Result {
+  matchId   String     @id
+  homeScore Int
+  awayScore Int
+  status    MatchStatus @default(SCHEDULED)
+  updatedAt DateTime   @default(now()) @updatedAt
+  match     Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+model Score {
+  userId         String @id
+  points         Int    @default(0)
+  exactScores    Int    @default(0)
+  correctResults Int    @default(0)
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id        String     @id @default(cuid())
+  userId    String
+  content   String
+  pinned    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+
+  @@index([createdAt])
+}
+
+model Reaction {
+  id        String  @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  key         String      @unique // "nostradamus" | "daronissime" | "meme_pas_mal" | "sniper"
+  label       String
+  emoji       String
+  description String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  createdBy String
+  expiresAt DateTime?
+  usesLeft  Int? // null = illimité
+  createdAt DateTime @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// NextAuth (adapter Prisma)
+// ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Stage {
+  GROUP
+  ROUND_OF_32
+  ROUND_OF_16
+  QUARTER
+  SEMI
+  THIRD_PLACE
+  FINAL
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+}

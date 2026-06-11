@@ -1,0 +1,217 @@
+import Link from "next/link";
+import { ChevronRight, TrendingUp, Target, Trophy } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { PageHeader } from "@/components/page-header";
+import { MatchCard } from "@/components/match-card";
+import { Flag } from "@/components/flag";
+import { Card } from "@/components/ui/card";
+import {
+  getLeaderboard,
+  getMatches,
+  getUserStats,
+} from "@/lib/data/queries";
+import { dayKey } from "@/lib/utils";
+
+export const metadata = { title: "Hub \u00b7 DaronsFC" };
+export const dynamic = "force-dynamic";
+
+const MEDALS = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
+
+export default async function DashboardPage() {
+  const session = await auth();
+  const firstName = session?.user?.name?.split(" ")[0] ?? "Daron";
+  const today = dayKey(new Date());
+
+  const [matches, leaderboard] = await Promise.all([
+    getMatches(),
+    getLeaderboard(),
+  ]);
+
+  const stats = session?.user?.id
+    ? await getUserStats(session.user.id)
+    : null;
+
+  const TOP_3 = leaderboard.slice(0, 3).map((u, i) => ({
+    name: u.name,
+    points: u.points,
+    medal: MEDALS[i],
+  }));
+
+  const myRank = session?.user?.id
+    ? leaderboard.find((u) => u.email === session.user?.email)?.rank
+    : undefined;
+
+  const todayMatches = matches.filter((m) => dayKey(m.kickoffAt) === today);
+  const featuredMatch = todayMatches[0];
+
+  const upcomingMatches = matches
+    .filter((m) => !m.result && new Date(m.kickoffAt) > new Date())
+    .slice(0, 3);
+
+  const wave = "\u{1F44B}";
+
+  return (
+    <>
+      <PageHeader
+        title={"Salut " + firstName + " " + wave}
+        subtitle={"Pr\u00eat \u00e0 pronostiquer ?"}
+      />
+
+      <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
+        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+          <Trophy className="mb-1 size-5 text-[var(--color-gold)]" />
+          <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+            {stats?.points ?? 0}
+          </span>
+          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            Points
+          </span>
+        </Card>
+
+        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+          <Target className="mb-1 size-5 text-[var(--color-pitch-bright)]" />
+          <span className="text-gradient-pitch font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+            {stats?.exactScores ?? 0}
+          </span>
+          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            Scores exacts
+          </span>
+        </Card>
+
+        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+          <TrendingUp className="mb-1 size-5 text-[var(--color-gold)]" />
+          <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+            {myRank ? `${myRank}${myRank === 1 ? "er" : "e"}` : "—"}
+          </span>
+          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            Rang
+          </span>
+        </Card>
+      </div>
+
+      {featuredMatch && (
+        <div className="mb-6 animate-stagger stagger-2">
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-sm font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+            Match du jour
+          </h2>
+          <Link href={"/matches/" + featuredMatch.id} className="block">
+            <Card className="glass-strong glow-pitch relative overflow-hidden p-0 transition-all duration-300 hover:scale-[1.01]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--color-pitch)]/10 via-transparent to-[var(--color-gold)]/5" />
+
+              <div className="relative p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
+                    {featuredMatch.group
+                      ? "Groupe " + featuredMatch.group
+                      : featuredMatch.stage}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-pitch)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-pitch-bright)]">
+                    <span className="size-2 animate-pulse rounded-full bg-[var(--color-pitch-bright)]" />
+                    {"Bient\u00f4t"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
+                    <Flag code={featuredMatch.homeFlag} className="h-11 w-16 drop-shadow-lg" />
+                    <span className="font-[family-name:var(--font-display)] text-base font-bold">
+                      {featuredMatch.homeTeam}
+                    </span>
+                  </div>
+
+                  <span className="font-[family-name:var(--font-display)] text-xl font-black text-[var(--color-muted)]/60">
+                    VS
+                  </span>
+
+                  <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
+                    <Flag code={featuredMatch.awayFlag} className="h-11 w-16 drop-shadow-lg" />
+                    <span className="font-[family-name:var(--font-display)] text-base font-bold">
+                      {featuredMatch.awayTeam}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-center">
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--color-pitch)] to-[var(--color-pitch-bright)] px-6 py-2.5 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-[var(--color-pitch)]/25 transition-transform hover:scale-105">
+                    Pronostiquer
+                    <ChevronRight className="size-4" />
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </Link>
+        </div>
+      )}
+
+      <div className="mb-6 animate-stagger stagger-3">
+        <Card className="glass overflow-hidden">
+          <Link
+            href="/leaderboard"
+            className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-4 py-3 transition-colors hover:bg-white/[0.02]"
+          >
+            <span className="font-[family-name:var(--font-display)] text-sm font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+              Classement
+            </span>
+            <ChevronRight className="size-4 text-[var(--color-muted)]" />
+          </Link>
+          <ul>
+            {TOP_3.map((r, i) => (
+              <li
+                key={r.name}
+                className={
+                  "flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/[0.02]" +
+                  (i < TOP_3.length - 1
+                    ? " border-b border-[var(--color-border-subtle)]"
+                    : "")
+                }
+              >
+                <span className="text-lg leading-none">{r.medal}</span>
+                <span
+                  className={
+                    "flex-1 font-medium" +
+                    (i === 0
+                      ? " text-gradient-gold font-[family-name:var(--font-display)] font-bold"
+                      : "")
+                  }
+                >
+                  {r.name}
+                </span>
+                <span
+                  className={
+                    "font-[family-name:var(--font-mono)] text-sm font-semibold" +
+                    (i === 0
+                      ? " text-[var(--color-gold)]"
+                      : " text-[var(--color-muted)]")
+                  }
+                >
+                  {r.points} pts
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      {upcomingMatches.length > 0 && (
+        <div className="animate-stagger stagger-4">
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-lg font-bold">
+            Prochains matchs
+          </h2>
+          <div className="flex flex-col gap-2.5">
+            {upcomingMatches.map((m) => (
+              <MatchCard key={m.id} match={m} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {todayMatches.length === 0 && upcomingMatches.length === 0 && (
+        <Card className="glass p-8 text-center">
+          <p className="text-sm text-[var(--color-muted)]">
+            {"Aucun match \u00e0 venir. Repose tes pronos \u{1F634}"}
+          </p>
+        </Card>
+      )}
+    </>
+  );
+}
