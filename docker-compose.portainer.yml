@@ -51,18 +51,13 @@ services:
       start_period: 10s
 
   migrate:
-    image: ghcr.io/cparfait/daronscup:latest
+    image: ghcr.io/cparfait/daronscup:migrate
     pull_policy: always
     container_name: daronsfc_migrate
     restart: "no"
     depends_on:
       db:
         condition: service_healthy
-    entrypoint: >
-      sh -c "
-        node node_modules/prisma/build/index.js db push --skip-generate
-        && echo 'Migration terminée'
-      "
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-daronsfc}:${POSTGRES_PASSWORD:-daronsfc_secret}@db:5432/${POSTGRES_DB:-daronsfc}?schema=public"
       DIRECT_URL: "postgresql://${POSTGRES_USER:-daronsfc}:${POSTGRES_PASSWORD:-daronsfc_secret}@db:5432/${POSTGRES_DB:-daronsfc}?schema=public"

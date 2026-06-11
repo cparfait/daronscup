@@ -29,7 +29,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Prisma : schéma + binaire natif Linux (inclus via outputFileTracingIncludes)
+# Prisma : schéma + binaire natif Linux
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
@@ -39,3 +39,13 @@ USER nextjs
 EXPOSE 3000
 
 CMD ["node", "server.js"]
+
+# ─── Stage 4 : migrator ──────────────────────────────────────────────────────
+# Image dédiée à prisma db push — inclut node_modules complet (CLI + ses deps).
+FROM node:22-alpine AS migrator
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY prisma ./prisma
+COPY --from=builder /app/lib/generated ./lib/generated
+
+CMD ["node", "node_modules/prisma/build/index.js", "db", "push", "--skip-generate"]

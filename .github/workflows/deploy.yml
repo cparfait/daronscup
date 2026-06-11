@@ -3,7 +3,7 @@
 #
 # Déclenchement : push sur `main`
 # Pipeline :
-#   1. Build l'image Docker (linux/amd64)
+#   1. Build les images Docker (runner :latest + migrator :migrate)
 #   2. Push sur GitHub Container Registry (ghcr.io)
 #   3. Notifie Portainer via webhook → redéploiement automatique
 #
@@ -25,14 +25,11 @@ env:
 
 jobs:
   build-and-push:
-    name: Build & push image
+    name: Build & push images
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
-    outputs:
-      image: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout
@@ -48,24 +45,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short
-
-      - name: Build and push
+      - name: Build and push — app (runner)
         uses: docker/build-push-action@v5
         with:
           context: .
+          target: runner
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and push — migrator
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: migrator
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:migrate
+          cache-from: type=gha
 
   deploy:
     name: Trigger Portainer redeploy
