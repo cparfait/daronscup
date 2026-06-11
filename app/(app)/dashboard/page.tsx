@@ -1,17 +1,18 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronRight, TrendingUp, Target, Trophy } from "lucide-react";
+import { ChevronRight, TrendingUp, Target, Trophy, Radio } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { MatchCard } from "@/components/match-card";
 import { Flag } from "@/components/flag";
 import { Card } from "@/components/ui/card";
+import { LiveRefresher } from "@/components/live-refresher";
 import {
-  getLeaderboard,
+  getLiveLeaderboard,
   getMatches,
   getUserStats,
 } from "@/lib/data/queries";
-import { dayKey } from "@/lib/utils";
+import { dayKey, cn } from "@/lib/utils";
 
 export const metadata = { title: "Hub \u00b7 DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -23,9 +24,9 @@ export default async function DashboardPage() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "Daron";
   const today = dayKey(new Date());
 
-  const [matches, leaderboard] = await Promise.all([
+  const [matches, { entries: leaderboard, hasLive }] = await Promise.all([
     getMatches(),
-    getLeaderboard(),
+    getLiveLeaderboard(),
   ]);
 
   const stats = session?.user?.id
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
 
   const TOP_3 = leaderboard.slice(0, 3).map((u, i) => ({
     name: u.name,
-    points: u.points,
+    points: u.total,
     medal: MEDALS[i],
   }));
 
@@ -43,7 +44,8 @@ export default async function DashboardPage() {
     : undefined;
 
   const todayMatches = matches.filter((m) => dayKey(m.kickoffAt) === today);
-  const featuredMatch = todayMatches[0];
+  // Met en avant un match en direct s'il y en a un, sinon le 1er match du jour.
+  const featuredMatch = matches.find((m) => m.live) ?? todayMatches[0];
 
   const upcomingMatches = matches
     .filter((m) => !m.result && new Date(m.kickoffAt) > new Date())
@@ -53,6 +55,8 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {hasLive && <LiveRefresher seconds={30} />}
+
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
@@ -132,10 +136,21 @@ export default async function DashboardPage() {
                       ? "Groupe " + featuredMatch.group
                       : featuredMatch.stage}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-pitch)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-pitch-bright)]">
-                    <span className="size-2 animate-pulse rounded-full bg-[var(--color-pitch-bright)]" />
-                    {"Bient\u00f4t"}
-                  </span>
+                  {featuredMatch.live ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-red-400">
+                      <Radio className="size-3 animate-pulse" />
+                      En direct
+                    </span>
+                  ) : featuredMatch.result ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-2)] px-3 py-1 text-xs font-semibold text-[var(--color-muted)]">
+                      Termin\u00e9
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-pitch)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-pitch-bright)]">
+                      <span className="size-2 animate-pulse rounded-full bg-[var(--color-pitch-bright)]" />
+                      {"Bient\u00f4t"}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
@@ -146,9 +161,24 @@ export default async function DashboardPage() {
                     </span>
                   </div>
 
-                  <span className="font-[family-name:var(--font-display)] text-xl font-black text-[var(--color-muted)]/60">
-                    VS
-                  </span>
+                  {featuredMatch.live || featuredMatch.result ? (
+                    <span
+                      className={cn(
+                        "font-[family-name:var(--font-display)] text-3xl font-extrabold tabular-nums",
+                        featuredMatch.live
+                          ? "text-red-400"
+                          : "text-gradient-gold"
+                      )}
+                    >
+                      {(featuredMatch.live ?? featuredMatch.result)!.homeScore}
+                      <span className="mx-1 text-[var(--color-muted)]">-</span>
+                      {(featuredMatch.live ?? featuredMatch.result)!.awayScore}
+                    </span>
+                  ) : (
+                    <span className="font-[family-name:var(--font-display)] text-xl font-black text-[var(--color-muted)]/60">
+                      VS
+                    </span>
+                  )}
 
                   <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
                     <Flag code={featuredMatch.awayFlag} className="h-11 w-16 drop-shadow-lg" />
