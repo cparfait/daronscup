@@ -41,7 +41,9 @@ async function apiFetch<T>(path: string): Promise<T> {
 
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "X-Auth-Token": token },
-    next: { revalidate: 300 }, // cache 5 min
+    // Pas de cache : c'est le planificateur de sync (90 s en live / 30 min
+    // hors match) qui régule le rythme. Un cache figerait la fraîcheur.
+    cache: "no-store",
   });
 
   if (!res.ok) {
