@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronRight, TrendingUp, Target, Trophy } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
@@ -48,13 +49,29 @@ export default async function DashboardPage() {
     .filter((m) => !m.result && new Date(m.kickoffAt) > new Date())
     .slice(0, 3);
 
-  const wave = "\u{1F44B}";
+  const cup = "\u{1F3C6}";
+  const avatar = session?.user?.image;
 
   return (
     <>
       <PageHeader
-        title={"Salut " + firstName + " " + wave}
+        title={"Salut " + firstName + " " + cup}
         subtitle={"Pr\u00eat \u00e0 pronostiquer ?"}
+        action={
+          avatar ? (
+            <Image
+              src={avatar}
+              alt={firstName}
+              width={44}
+              height={44}
+              className="size-11 rounded-full object-cover ring-2 ring-[var(--color-pitch)]/30"
+            />
+          ) : (
+            <div className="flex size-11 items-center justify-center rounded-full bg-[var(--color-pitch)] text-lg font-bold ring-2 ring-[var(--color-pitch-bright)]/30">
+              {firstName.charAt(0).toUpperCase()}
+            </div>
+          )
+        }
       />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
