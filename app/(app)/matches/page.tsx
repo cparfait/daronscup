@@ -1,8 +1,11 @@
 import { PageHeader } from "@/components/page-header";
-import { MatchCard } from "@/components/match-card";
+import { MatchCardInteractive } from "@/components/match-card-interactive";
 import { Card } from "@/components/ui/card";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getMatches } from "@/lib/data/queries";
 import type { Match } from "@/lib/data/matches";
+import { jokerPhase, jokerBudget, JOKER_BUDGET } from "@/lib/jokers";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Matchs · DaronsFC" };
@@ -24,12 +27,47 @@ function groupByDay(matches: Match[]) {
 }
 
 export default async function MatchesPage() {
-  const matches = await getMatches();
+  const [matches, session] = await Promise.all([getMatches(), auth()]);
   const days = groupByDay(matches);
   const totalMatches = matches.length;
   const finishedCount = matches.filter(
     (m) => m.result?.status === "FINISHED"
   ).length;
+
+  // Pronostics de l'utilisateur + jokers utilisés par phase (pour l'inline).
+  const predByMatch = new Map<
+    string,
+    { homeScore: number; awayScore: number; joker: boolean }
+  >();
+  let groupJokers = 0;
+  let knockoutJokers = 0;
+  if (session?.user?.id) {
+    try {
+      const preds = await prisma.prediction.findMany({
+        where: { userId: session.user.id },
+        include: { match: { select: { stage: true } } },
+      });
+      for (const p of preds) {
+        predByMatch.set(p.matchId, {
+          homeScore: p.homeScore,
+          awayScore: p.awayScore,
+          joker: p.joker,
+        });
+        if (p.joker) {
+          if (jokerPhase(p.match.stage) === "group") groupJokers++;
+          else knockoutJokers++;
+        }
+      }
+    } catch {}
+  }
+
+  /** Jokers restants pour la phase d'un match (hors prono de ce match). */
+  function jokersLeftFor(m: Match): number {
+    const phase = jokerPhase(m.stage);
+    const used = phase === "group" ? groupJokers : knockoutJokers;
+    const thisJoker = predByMatch.get(m.id)?.joker ? 1 : 0;
+    return Math.max(0, JOKER_BUDGET[phase] - (used - thisJoker));
+  }
 
   return (
     <>
@@ -98,7 +136,12 @@ export default async function MatchesPage() {
                   className="animate-stagger"
                   style={{ animationDelay: `${0.05 * i + 0.1 * dayIdx}s` }}
                 >
-                  <MatchCard match={m} />
+                  <MatchCardInteractive
+                    match={m}
+                    prediction={predByMatch.get(m.id)}
+                    jokersLeft={jokersLeftFor(m)}
+                    jokerBudget={jokerBudget(m.stage)}
+                  />
                 </div>
               ))}
             </div>

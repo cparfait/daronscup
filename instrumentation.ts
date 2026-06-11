@@ -1,40 +1,57 @@
 /**
  * Hook de démarrage Next.js (exécuté une fois au lancement du serveur).
  *
- * Met en place la synchronisation AUTOMATIQUE des matchs/scores depuis
- * football-data.org à intervalle régulier — indépendamment de la navigation
- * des utilisateurs. Tourne dans le processus du serveur (runtime Node), donc
- * aucun conteneur cron ni endpoint exposé n'est nécessaire.
+ * Synchronisation AUTOMATIQUE et ADAPTATIVE des matchs/scores depuis
+ * football-data.org, indépendamment de la navigation des utilisateurs.
  *
- * Intervalle configurable via SYNC_INTERVAL_MINUTES (défaut : 3 min).
- * football-data.org (palier gratuit) = 10 req/min ; un sync = 1 requête, donc
- * 3 min laisse une large marge.
+ *   • Fenêtre de match active (kickoff imminent ou match en cours)
+ *       → sync rapide (SYNC_LIVE_SECONDS, défaut 90 s)
+ *   • Aucun match en vue
+ *       → sync lente (SYNC_IDLE_MINUTES, défaut 30 min)
+ *
+ * Rythme volontairement sous la limite de 10 req/min de football-data.org,
+ * sans plafond journalier → couvre des matchs étalés sur toute la journée.
  */
 export async function register() {
   // Ne s'exécute que côté serveur Node (pas en edge runtime).
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const minutes = Math.max(1, Number(process.env.SYNC_INTERVAL_MINUTES ?? 3));
-  const intervalMs = minutes * 60_000;
+  const liveSeconds = Math.max(30, Number(process.env.SYNC_LIVE_SECONDS ?? 90));
+  const idleMinutes = Math.max(1, Number(process.env.SYNC_IDLE_MINUTES ?? 30));
 
-  const [{ maybeSyncMatches }, { maybeInit }] = await Promise.all([
-    import("./lib/football-data"),
-    import("./lib/init"),
-  ]);
+  const [{ syncMatches, hasActiveMatchWindow }, { maybeInit }] =
+    await Promise.all([import("./lib/football-data"), import("./lib/init")]);
 
-  // Démarrage : seed des badges + premier sync, après un court délai pour
-  // laisser la base et la migration se stabiliser.
+  const runSync = async () => {
+    try {
+      const r = await syncMatches();
+      if (r.results > 0) {
+        console.log(`[auto-sync] ✓ ${r.matches} matchs, ${r.results} résultats`);
+      }
+    } catch (err) {
+      console.error("[auto-sync] ✗", err instanceof Error ? err.message : err);
+    }
+  };
+
+  const loop = async () => {
+    await runSync();
+    let fast = false;
+    try {
+      fast = await hasActiveMatchWindow();
+    } catch {}
+    const delay = fast ? liveSeconds * 1_000 : idleMinutes * 60_000;
+    setTimeout(loop, delay);
+  };
+
+  // Démarrage : seed badges + compte admin, puis lance la boucle adaptative
+  // après un court délai (laisse la base et la migration se stabiliser).
   setTimeout(() => {
-    maybeInit().catch(() => {});
-    maybeSyncMatches().catch(() => {});
+    maybeInit()
+      .catch(() => {})
+      .finally(loop);
   }, 8_000);
 
-  // Sync périodique. maybeSyncMatches porte son propre debounce (2 min) :
-  // comme l'intervalle est >= 3 min, le sync planifié passe toujours, et les
-  // déclenchements liés à la navigation ne provoquent pas de double-appel.
-  setInterval(() => {
-    maybeSyncMatches().catch(() => {});
-  }, intervalMs);
-
-  console.log(`[instrumentation] auto-sync activé — toutes les ${minutes} min`);
+  console.log(
+    `[instrumentation] auto-sync adaptatif — live ${liveSeconds}s / idle ${idleMinutes}min`
+  );
 }

@@ -1,0 +1,254 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Minus, Plus, Check, Loader2, Lock, ChevronRight } from "lucide-react";
+import { CountdownTimer } from "./countdown-timer";
+import { Card } from "./ui/card";
+import { Flag } from "./flag";
+import { cn } from "@/lib/utils";
+import { STAGE_LABELS, type Match } from "@/lib/data/matches";
+
+type Props = {
+  match: Match;
+  prediction?: { homeScore: number; awayScore: number; joker: boolean };
+  jokersLeft: number;
+  jokerBudget: number;
+};
+
+function ScoreStepper({
+  flag,
+  name,
+  value,
+  onChange,
+  disabled,
+}: {
+  flag: string;
+  name: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <Flag code={flag} className="h-5 w-7 shrink-0" />
+        <span className="truncate text-sm font-medium">{name}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          aria-label={`Moins ${name}`}
+          disabled={disabled || value <= 0}
+          onClick={() => onChange(Math.max(0, value - 1))}
+          className="flex size-7 items-center justify-center rounded-full bg-[var(--color-surface-2)] disabled:opacity-30"
+        >
+          <Minus className="size-3.5" />
+        </button>
+        <span className="w-6 text-center font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">
+          {value}
+        </span>
+        <button
+          type="button"
+          aria-label={`Plus ${name}`}
+          disabled={disabled || value >= 20}
+          onClick={() => onChange(Math.min(20, value + 1))}
+          className="flex size-7 items-center justify-center rounded-full bg-[var(--color-surface-2)] disabled:opacity-30"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function MatchCardInteractive({
+  match,
+  prediction,
+  jokersLeft,
+  jokerBudget,
+}: Props) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [home, setHome] = useState(prediction?.homeScore ?? 0);
+  const [away, setAway] = useState(prediction?.awayScore ?? 0);
+  const [joker, setJoker] = useState(prediction?.joker ?? false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const finished = match.result?.status === "FINISHED";
+  const locked = Date.now() >= new Date(match.kickoffAt).getTime();
+  const group = match.group ? `Groupe ${match.group}` : STAGE_LABELS[match.stage];
+  const canUseJoker = jokersLeft > 0 || joker;
+
+  const dirty =
+    home !== (prediction?.homeScore ?? 0) ||
+    away !== (prediction?.awayScore ?? 0) ||
+    joker !== (prediction?.joker ?? false);
+
+  const save = () =>
+    start(async () => {
+      setError(null);
+      try {
+        const res = await fetch("/api/predictions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchId: match.id,
+            homeScore: home,
+            awayScore: away,
+            joker,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Échec");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
+      }
+    });
+
+  return (
+    <Card className="p-4">
+      {/* En-tête : phase + compte à rebours / statut */}
+      <div className="mb-3 flex items-center justify-between text-xs text-[var(--color-muted)]">
+        <span className="font-[family-name:var(--font-mono)]">{group}</span>
+        {finished ? (
+          <span className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 font-semibold uppercase tracking-wider">
+            Terminé
+          </span>
+        ) : (
+          <CountdownTimer target={match.kickoffAt} />
+        )}
+      </div>
+
+      {finished || locked ? (
+        /* ── Lecture seule : score / prono ── */
+        <div className="space-y-2">
+          <ReadOnlyRow
+            flag={match.homeFlag}
+            name={match.homeTeam}
+            score={finished ? match.result?.homeScore : undefined}
+          />
+          <ReadOnlyRow
+            flag={match.awayFlag}
+            name={match.awayTeam}
+            score={finished ? match.result?.awayScore : undefined}
+          />
+          <div className="flex items-center justify-between border-t border-[var(--color-border-subtle)] pt-2 text-xs">
+            {prediction ? (
+              <span className="text-[var(--color-muted)]">
+                Ton prono :{" "}
+                <span className="font-[family-name:var(--font-mono)] font-semibold text-[var(--color-gold)]">
+                  {prediction.homeScore} – {prediction.awayScore}
+                </span>
+                {prediction.joker && (
+                  <span className="ml-1.5 rounded bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold)]">
+                    ×2
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[var(--color-muted)]">
+                <Lock className="size-3" /> Pas de prono
+              </span>
+            )}
+            <Link
+              href={`/matches/${match.id}`}
+              className="flex items-center gap-0.5 text-[var(--color-muted)] hover:text-[var(--color-cream)]"
+            >
+              Détails <ChevronRight className="size-3.5" />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        /* ── Pronostic inline ── */
+        <div className="space-y-2.5">
+          <ScoreStepper
+            flag={match.homeFlag}
+            name={match.homeTeam}
+            value={home}
+            onChange={setHome}
+            disabled={pending}
+          />
+          <ScoreStepper
+            flag={match.awayFlag}
+            name={match.awayTeam}
+            value={away}
+            onChange={setAway}
+            disabled={pending}
+          />
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              disabled={!canUseJoker || pending}
+              onClick={() => setJoker((j) => !j)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                joker
+                  ? "border-[var(--color-gold)] bg-[var(--color-gold)]/10 text-[var(--color-gold)]"
+                  : "border-[var(--color-border-subtle)] text-[var(--color-muted)]",
+                !canUseJoker && "cursor-not-allowed opacity-40"
+              )}
+              title={
+                canUseJoker
+                  ? `${jokersLeft}/${jokerBudget} jokers restants`
+                  : "Budget de jokers épuisé"
+              }
+            >
+              🃏 Joker ×2
+            </button>
+
+            <button
+              type="button"
+              onClick={save}
+              disabled={pending || (!dirty && !!prediction)}
+              className="flex items-center gap-1.5 rounded-lg bg-[var(--color-pitch)] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-pitch-bright)] disabled:opacity-40"
+            >
+              {pending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : saved ? (
+                <Check className="size-3.5" />
+              ) : null}
+              {saved
+                ? "Enregistré"
+                : prediction
+                  ? "Modifier"
+                  : "Valider"}
+            </button>
+          </div>
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ReadOnlyRow({
+  flag,
+  name,
+  score,
+}: {
+  flag: string;
+  name: string;
+  score?: number;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex min-w-0 items-center gap-2">
+        <Flag code={flag} className="h-5 w-7 shrink-0" />
+        <span className="truncate text-sm font-medium">{name}</span>
+      </div>
+      {score !== undefined && (
+        <span className="font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">
+          {score}
+        </span>
+      )}
+    </div>
+  );
+}

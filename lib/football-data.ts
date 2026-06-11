@@ -208,16 +208,48 @@ export async function syncMatches(
       ? await prisma.match.update({ where: { id: existing.id }, data: matchData })
       : await prisma.match.create({ data: matchData });
 
-    // Résultat (si match terminé)
+    // Résultat
     const home = fd.score.fullTime.home;
     const away = fd.score.fullTime.away;
     if (fd.status === "FINISHED" && home != null && away != null) {
       await applyMatchResult(match.id, home, away);
       results++;
+    } else if (
+      (fd.status === "IN_PLAY" || fd.status === "PAUSED") &&
+      home != null &&
+      away != null
+    ) {
+      // Score en direct : stocké avec le statut LIVE, SANS créditer de points
+      // (les points ne sont attribués qu'au coup de sifflet final).
+      await prisma.result.upsert({
+        where: { matchId: match.id },
+        update: { homeScore: home, awayScore: away, status: "LIVE" },
+        create: { matchId: match.id, homeScore: home, awayScore: away, status: "LIVE" },
+      });
     }
   }
 
   return { matches: data.matches.length, results };
+}
+
+/**
+ * Indique s'il y a une fenêtre de match « active » (un match dont le coup
+ * d'envoi est imminent ou qui est probablement en cours), d'après les
+ * horaires en base — SANS appeler l'API. Sert à décider de la fréquence de
+ * synchronisation (rapide en live, lente sinon).
+ */
+export async function hasActiveMatchWindow(): Promise<boolean> {
+  const now = Date.now();
+  const from = new Date(now - 140 * 60_000); // kickoff jusqu'à 2h20 avant
+  const to = new Date(now + 15 * 60_000); // kickoff jusqu'à 15 min après now
+  try {
+    const count = await prisma.match.count({
+      where: { kickoffAt: { gte: from, lte: to } },
+    });
+    return count > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
