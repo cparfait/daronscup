@@ -212,47 +212,63 @@ export async function syncMatches(
     const home = fd.score.fullTime.home;
     const away = fd.score.fullTime.away;
     if (fd.status === "FINISHED" && home != null && away != null) {
-      await prisma.result.upsert({
-        where: { matchId: match.id },
-        update: { homeScore: home, awayScore: away, status: "FINISHED" },
-        create: { matchId: match.id, homeScore: home, awayScore: away, status: "FINISHED" },
-      });
+      await applyMatchResult(match.id, home, away);
       results++;
-
-      // Attribution des points — idempotent (pointsAwarded null = pas encore traité)
-      const preds = await prisma.prediction.findMany({
-        where: { matchId: match.id, pointsAwarded: null },
-      });
-      for (const pred of preds) {
-        const { points, exactScore, correctResult } = computePoints(
-          { homeScore: pred.homeScore, awayScore: pred.awayScore },
-          { homeScore: home, awayScore: away },
-          pred.joker
-        );
-        await prisma.prediction.update({
-          where: { id: pred.id },
-          data: { pointsAwarded: points },
-        });
-        await prisma.score.upsert({
-          where: { userId: pred.userId },
-          update: {
-            points: { increment: points },
-            exactScores: { increment: exactScore ? 1 : 0 },
-            correctResults: { increment: correctResult ? 1 : 0 },
-          },
-          create: {
-            userId: pred.userId,
-            points,
-            exactScores: exactScore ? 1 : 0,
-            correctResults: correctResult ? 1 : 0,
-          },
-        });
-        await checkAndAwardBadges(pred.userId);
-      }
     }
   }
 
   return { matches: data.matches.length, results };
+}
+
+/**
+ * Enregistre le résultat d'un match et attribue les points correspondants.
+ * Idempotent : seules les prédictions non encore traitées (pointsAwarded null)
+ * sont créditées, donc un re-appel avec le même résultat ne double pas les points.
+ * Réutilisé par la synchro automatique ET la saisie manuelle (console admin).
+ */
+export async function applyMatchResult(
+  matchId: string,
+  homeScore: number,
+  awayScore: number
+): Promise<{ scored: number }> {
+  await prisma.result.upsert({
+    where: { matchId },
+    update: { homeScore, awayScore, status: "FINISHED" },
+    create: { matchId, homeScore, awayScore, status: "FINISHED" },
+  });
+
+  const preds = await prisma.prediction.findMany({
+    where: { matchId, pointsAwarded: null },
+  });
+
+  for (const pred of preds) {
+    const { points, exactScore, correctResult } = computePoints(
+      { homeScore: pred.homeScore, awayScore: pred.awayScore },
+      { homeScore, awayScore },
+      pred.joker
+    );
+    await prisma.prediction.update({
+      where: { id: pred.id },
+      data: { pointsAwarded: points },
+    });
+    await prisma.score.upsert({
+      where: { userId: pred.userId },
+      update: {
+        points: { increment: points },
+        exactScores: { increment: exactScore ? 1 : 0 },
+        correctResults: { increment: correctResult ? 1 : 0 },
+      },
+      create: {
+        userId: pred.userId,
+        points,
+        exactScores: exactScore ? 1 : 0,
+        correctResults: correctResult ? 1 : 0,
+      },
+    });
+    await checkAndAwardBadges(pred.userId);
+  }
+
+  return { scored: preds.length };
 }
 
 // ─────────────────────────────────────────────

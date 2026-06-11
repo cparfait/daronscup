@@ -3,9 +3,16 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { AdminConsole } from "@/components/admin-console";
+import {
+  getAdminStats,
+  getAdminUsers,
+  getUnfinishedMatches,
+} from "@/lib/data/admin";
 
 export const metadata = { title: "Admin · DaronsFC" };
+export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -13,11 +20,21 @@ export default async function AdminPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const PANELS = [
-    { title: "👥 Utilisateurs", desc: "Ban, reset points, rôles." },
-    { title: "⚽ Scores manuels", desc: "Saisie si l'API est en retard." },
-    { title: "📌 Messages épinglés", desc: "Annonces dans le tchat." },
-    { title: "📊 Stats", desc: "Participation, top scorers, activité." },
+  const [stats, users, matches] = await Promise.all([
+    getAdminStats(),
+    getAdminUsers(),
+    getUnfinishedMatches(),
+  ]);
+
+  const STATS = [
+    { label: "Joueurs", value: stats.users, emoji: "👥" },
+    { label: "Pronostics", value: stats.predictions, emoji: "🎯" },
+    { label: "Messages", value: stats.messages, emoji: "💬" },
+    {
+      label: "Matchs joués",
+      value: `${stats.finishedMatches}/${stats.totalMatches}`,
+      emoji: "⚽",
+    },
   ];
 
   return (
@@ -31,20 +48,26 @@ export default async function AdminPage() {
 
       <PageHeader title="Console Admin" subtitle="Réservé aux darons en chef" />
 
-      <div className="grid gap-3">
-        {PANELS.map((p) => (
-          <Card key={p.title}>
-            <CardContent className="p-4">
-              <CardTitle className="text-base">{p.title}</CardTitle>
-              <p className="mt-1 text-sm text-[var(--color-muted)]">{p.desc}</p>
-            </CardContent>
+      {/* Stats */}
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        {STATS.map((s) => (
+          <Card key={s.label} className="p-4 text-center">
+            <p className="text-2xl">{s.emoji}</p>
+            <p className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--color-gold)]">
+              {s.value}
+            </p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+              {s.label}
+            </p>
           </Card>
         ))}
       </div>
 
-      <p className="mt-6 text-center text-xs text-[var(--color-muted)]">
-        Modules interactifs complets : Sprint 5.
-      </p>
+      <AdminConsole
+        users={users}
+        matches={matches}
+        currentUserId={session.user.id}
+      />
     </main>
   );
 }

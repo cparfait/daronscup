@@ -1,0 +1,320 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  RefreshCw,
+  Ban,
+  ShieldCheck,
+  ShieldOff,
+  Undo2,
+  Check,
+  Loader2,
+} from "lucide-react";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import type { AdminUser } from "@/lib/data/admin";
+
+type UnfinishedMatch = {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  kickoffAt: string;
+};
+
+export function AdminConsole({
+  users,
+  matches,
+  currentUserId,
+}: {
+  users: AdminUser[];
+  matches: UnfinishedMatch[];
+  currentUserId: string;
+}) {
+  return (
+    <div className="grid gap-4">
+      <SyncPanel />
+      <ManualScorePanel matches={matches} />
+      <UsersPanel users={users} currentUserId={currentUserId} />
+    </div>
+  );
+}
+
+/* ─── Feedback inline ─── */
+function useFeedback() {
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const flash = (text: string, ok: boolean) => {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 4000);
+  };
+  return { msg, flash };
+}
+
+/* ─── Synchronisation manuelle ─── */
+function SyncPanel() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+
+  const sync = () =>
+    start(async () => {
+      try {
+        const res = await fetch("/api/sync", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(`✓ ${data.matches} matchs, ${data.results} résultats`, true);
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">⚽ Synchronisation</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Force une mise à jour immédiate des matchs et scores depuis l&apos;API.
+        </p>
+        <Button variant="primary" size="sm" onClick={sync} disabled={pending}>
+          {pending ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <RefreshCw />
+          )}
+          Synchroniser maintenant
+        </Button>
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Saisie manuelle d'un score ─── */
+function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+  const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
+  const [home, setHome] = useState("");
+  const [away, setAway] = useState("");
+
+  const submit = () =>
+    start(async () => {
+      if (!matchId || home === "" || away === "") {
+        flash("Sélectionne un match et saisis les deux scores.", false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/admin/result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchId,
+            homeScore: Number(home),
+            awayScore: Number(away),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(`✓ Résultat enregistré (${data.scored} pronos crédités)`, true);
+        setHome("");
+        setAway("");
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">📝 Score manuel</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Saisis un résultat si l&apos;API est en retard.
+        </p>
+
+        {matches.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">
+            Aucun match en attente de résultat.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <select
+              value={matchId}
+              onChange={(e) => setMatchId(e.target.value)}
+              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+            >
+              {matches.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.homeTeam} – {m.awayTeam}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center justify-center gap-3">
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={home}
+                onChange={(e) => setHome(e.target.value)}
+                placeholder="0"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+              />
+              <span className="text-xl font-bold text-[var(--color-muted)]">–</span>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={away}
+                onChange={(e) => setAway(e.target.value)}
+                placeholder="0"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+              />
+            </div>
+
+            <Button variant="gold" size="sm" onClick={submit} disabled={pending}>
+              {pending ? <Loader2 className="animate-spin" /> : <Check />}
+              Enregistrer le résultat
+            </Button>
+          </div>
+        )}
+
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Gestion des utilisateurs ─── */
+function UsersPanel({
+  users,
+  currentUserId,
+}: {
+  users: AdminUser[];
+  currentUserId: string;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const act = (userId: string, action: string) =>
+    start(async () => {
+      setBusyId(userId);
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, action }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      } finally {
+        setBusyId(null);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">👥 Utilisateurs ({users.length})</CardTitle>
+        {msg && !msg.ok && (
+          <p className="mt-2 text-sm text-red-400">{msg.text}</p>
+        )}
+        <div className="mt-3 flex flex-col gap-2">
+          {users.map((u) => {
+            const isSelf = u.id === currentUserId;
+            const busy = pending && busyId === u.id;
+            return (
+              <div
+                key={u.id}
+                className="flex items-center gap-2 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-medium">{u.name}</span>
+                    {u.role === "ADMIN" && (
+                      <span className="rounded bg-[var(--color-gold)]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[var(--color-gold)]">
+                        Admin
+                      </span>
+                    )}
+                    {u.banned && (
+                      <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-400">
+                        Banni
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-[var(--color-muted)]">
+                    {u.points} pts · {u.predictions} pronos
+                  </p>
+                </div>
+
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin text-[var(--color-muted)]" />
+                ) : (
+                  !isSelf && (
+                    <div className="flex shrink-0 gap-1">
+                      {/* Ban / unban */}
+                      {u.banned ? (
+                        <button
+                          onClick={() => act(u.id, "unban")}
+                          title="Débannir"
+                          className="flex size-8 items-center justify-center rounded-lg text-[var(--color-pitch-bright)] hover:bg-[var(--color-surface-3)]"
+                        >
+                          <Undo2 className="size-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => act(u.id, "ban")}
+                          title="Bannir"
+                          className="flex size-8 items-center justify-center rounded-lg text-red-400 hover:bg-[var(--color-surface-3)]"
+                        >
+                          <Ban className="size-4" />
+                        </button>
+                      )}
+                      {/* Promote / demote */}
+                      {u.role === "ADMIN" ? (
+                        <button
+                          onClick={() => act(u.id, "demote")}
+                          title="Retirer admin"
+                          className="flex size-8 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-surface-3)]"
+                        >
+                          <ShieldOff className="size-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => act(u.id, "promote")}
+                          title="Passer admin"
+                          className="flex size-8 items-center justify-center rounded-lg text-[var(--color-gold)] hover:bg-[var(--color-surface-3)]"
+                        >
+                          <ShieldCheck className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
