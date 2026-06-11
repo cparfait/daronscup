@@ -1,18 +1,17 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# DaronsFC — CI/CD
+# DaronsFC — CI
 #
 # Déclenchement : push sur `main`
 # Pipeline :
 #   1. Build les images Docker (runner :latest + migrator :migrate)
 #   2. Push sur GitHub Container Registry (ghcr.io)
-#   3. Notifie Portainer via webhook → redéploiement automatique
 #
-# Secrets à configurer dans GitHub → Settings → Secrets → Actions :
-#   PORTAINER_WEBHOOK_URL  URL webhook du stack Portainer
-#                          (Portainer → Stack → daronsfc → Webhooks → copier l'URL)
+# Le redéploiement est géré côté serveur (Watchtower surveille GHCR et met à
+# jour l'image automatiquement) — comme pour les autres apps. Aucun webhook ni
+# accès entrant nécessaire.
 # ──────────────────────────────────────────────────────────────────────────────
 
-name: Build & Deploy
+name: Build & Push
 
 on:
   push:
@@ -65,17 +64,3 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:migrate
           cache-from: type=gha
-
-  deploy:
-    name: Trigger Portainer redeploy
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Webhook Portainer
-        run: |
-          curl -fsS -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            --max-time 30 \
-            && echo "✅ Portainer notifié — redéploiement en cours"
