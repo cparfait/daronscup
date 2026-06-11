@@ -16,6 +16,8 @@ type Props = {
   kickoffAt: string;
   locked: boolean; // calculé côté serveur (kickoff passé)
   initial?: { homeScore: number; awayScore: number; joker: boolean; comment?: string };
+  jokersLeft: number; // jokers restants dans la phase (hors ce match)
+  jokerBudget: number; // budget total de la phase (4 poules / 2 finale)
 };
 
 function Stepper({
@@ -66,10 +68,12 @@ function Stepper({
 
 export function PredictionForm(props: Props) {
   const router = useRouter();
-  const { locked, initial } = props;
+  const { locked, initial, jokersLeft, jokerBudget } = props;
   const [home, setHome] = useState(initial?.homeScore ?? 0);
   const [away, setAway] = useState(initial?.awayScore ?? 0);
   const [joker, setJoker] = useState(initial?.joker ?? false);
+  // On peut activer le joker s'il en reste, ou s'il est déjà posé sur ce match.
+  const canUseJoker = jokersLeft > 0 || joker;
   const [comment, setComment] = useState(initial?.comment ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
@@ -138,23 +142,30 @@ export function PredictionForm(props: Props) {
       {/* Joker */}
       <button
         type="button"
+        disabled={!canUseJoker || status === "saving"}
         onClick={() => setJoker((j) => !j)}
         className={cn(
           "mt-5 flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-colors",
           joker
             ? "border-[var(--color-gold)] bg-[var(--color-gold)]/10"
-            : "border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]"
+            : "border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]",
+          !canUseJoker && "cursor-not-allowed opacity-50"
         )}
       >
-        <span className="flex items-center gap-2 text-sm font-medium">
-          🃏 Activer le Joker
+        <span className="flex flex-col items-start gap-0.5 text-left">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            🃏 Activer le Joker
+            <span className="text-xs text-[var(--color-muted)]">(points ×2)</span>
+          </span>
           <span className="text-xs text-[var(--color-muted)]">
-            (points ×2, 1 par journée)
+            {canUseJoker
+              ? `${jokersLeft} joker${jokersLeft > 1 ? "s" : ""} restant${jokersLeft > 1 ? "s" : ""} sur ${jokerBudget} pour cette phase`
+              : "Budget de jokers épuisé pour cette phase"}
           </span>
         </span>
         <span
           className={cn(
-            "flex h-6 w-11 items-center rounded-full p-0.5 transition-colors",
+            "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
             joker ? "bg-[var(--color-gold)]" : "bg-[var(--color-border-subtle)]"
           )}
         >

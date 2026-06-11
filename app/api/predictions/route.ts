@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
 
 const bodySchema = z.object({
   matchId: z.string().min(1),
@@ -17,7 +18,7 @@ const bodySchema = z.object({
  * Sécurité (non contournable côté client) :
  *  - Authentification requise.
  *  - Verrou serveur : rejet si `kickoffAt` (UTC) est déjà passé.
- *  - Joker : 1 seul par journée (matchday) — verrouillé avec le prono.
+ *  - Joker : budget par phase (4 en poules, 2 en phase finale).
  *  - Horodatage `submittedAt` conservé en base.
  */
 export async function POST(req: Request) {
@@ -51,20 +52,23 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Règle Joker : 1 seul match par journée ──
-  if (joker && match.matchday != null) {
-    const existingJoker = await prisma.prediction.findFirst({
+  // ── Règle Joker : budget par phase (4 en poules, 2 en phase finale) ──
+  if (joker) {
+    const phase = jokerPhase(match.stage);
+    const budget = jokerBudget(match.stage);
+    const used = await prisma.prediction.count({
       where: {
         userId,
         joker: true,
         matchId: { not: matchId },
-        match: { matchday: match.matchday },
+        match: { stage: { in: stagesOfPhase(phase) } },
       },
-      select: { matchId: true },
     });
-    if (existingJoker) {
+    if (used >= budget) {
       return NextResponse.json(
-        { error: "Joker déjà utilisé sur un autre match de cette journée." },
+        {
+          error: `Budget de jokers épuisé pour cette phase (${budget} max).`,
+        },
         { status: 409 }
       );
     }

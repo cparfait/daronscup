@@ -18,7 +18,7 @@ export default async function LandingPage() {
       icon: "\u{1F0CF}",
       title: "Joue ton Joker \u00D72 strat\u00e9gique",
       description:
-        "Double tes points au bon moment. Un par phase, choisis bien.",
+        "Double tes points : 4 jokers en poules, 2 en phase finale.",
     },
     {
       icon: "\u{1F3C6}",
@@ -76,13 +76,13 @@ export default async function LandingPage() {
       />
 
       {/* ── Content ── */}
-      <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col items-center px-6 pt-16 pb-8 text-center">
+      <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 pt-8 pb-6 text-center">
         {/* Football icon with float */}
-        <div className="animate-float animate-stagger stagger-1 mb-8">
+        <div className="animate-float animate-stagger stagger-1 mb-5">
           <div
             className="
-              flex size-24 items-center justify-center rounded-[1.75rem]
-              text-5xl
+              flex size-16 items-center justify-center rounded-[1.5rem]
+              text-3xl
               shadow-[0_0_40px_rgba(22,163,74,0.25)]
             "
             style={{
@@ -100,8 +100,8 @@ export default async function LandingPage() {
           className="
             animate-stagger stagger-2
             font-[family-name:var(--font-display)]
-            text-6xl font-bold leading-none tracking-tight
-            sm:text-7xl
+            text-5xl font-bold leading-none tracking-tight
+            sm:text-6xl
           "
         >
           Darons
@@ -112,7 +112,7 @@ export default async function LandingPage() {
         <p
           className="
             animate-stagger stagger-3
-            mt-4 max-w-xs text-balance text-base leading-relaxed
+            mt-3 max-w-xs text-balance text-sm leading-relaxed
             text-[var(--color-muted)]
           "
         >
@@ -123,7 +123,7 @@ export default async function LandingPage() {
         {/* Divider */}
         <div
           aria-hidden="true"
-          className="animate-stagger stagger-3 my-8 h-px w-16"
+          className="animate-stagger stagger-3 my-5 h-px w-16"
           style={{
             background:
               "linear-gradient(90deg, transparent, var(--color-pitch), transparent)",
@@ -132,20 +132,20 @@ export default async function LandingPage() {
         />
 
         {/* Feature cards */}
-        <div className="animate-stagger stagger-4 grid w-full gap-3">
+        <div className="animate-stagger stagger-4 grid w-full gap-2.5">
           {features.map((f, i) => (
             <div
               key={f.title}
               className={`
                 glass card-hover
                 animate-stagger stagger-${4 + i}
-                flex items-start gap-4 rounded-2xl px-5 py-4 text-left
+                flex items-center gap-3.5 rounded-2xl px-4 py-3 text-left
               `}
             >
               <span
                 className="
-                  mt-0.5 flex size-10 shrink-0 items-center justify-center
-                  rounded-xl text-xl
+                  flex size-9 shrink-0 items-center justify-center
+                  rounded-xl text-lg
                 "
                 style={{
                   background:
@@ -170,7 +170,7 @@ export default async function LandingPage() {
         {/* Decorative divider */}
         <div
           aria-hidden="true"
-          className="animate-stagger stagger-7 my-8 h-px w-full"
+          className="animate-stagger stagger-7 my-5 h-px w-full"
           style={{
             background:
               "linear-gradient(90deg, transparent, var(--color-border-subtle), transparent)",

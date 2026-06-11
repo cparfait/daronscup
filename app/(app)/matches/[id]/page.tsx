@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMatch } from "@/lib/data/queries";
 import { STAGE_LABELS } from "@/lib/data/matches";
+import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
 import { formatKickoff } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,23 @@ export default async function MatchDetailPage({
           comment: pred.comment ?? undefined,
         };
       }
+    } catch {}
+  }
+
+  // Jokers restants pour la phase de ce match (poules = 4, phase finale = 2)
+  const budget = jokerBudget(match.stage);
+  let jokersLeft = budget;
+  if (session?.user?.id) {
+    try {
+      const usedElsewhere = await prisma.prediction.count({
+        where: {
+          userId: session.user.id,
+          joker: true,
+          matchId: { not: id },
+          match: { stage: { in: stagesOfPhase(jokerPhase(match.stage)) } },
+        },
+      });
+      jokersLeft = Math.max(0, budget - usedElsewhere);
     } catch {}
   }
 
@@ -226,6 +244,8 @@ export default async function MatchDetailPage({
             kickoffAt={match.kickoffAt}
             locked={locked}
             initial={existing}
+            jokersLeft={jokersLeft}
+            jokerBudget={budget}
           />
         )}
       </section>

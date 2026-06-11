@@ -142,22 +142,38 @@ export async function getStandings(): Promise<Record<string, StandingTeam[]>> {
   return out;
 }
 
-/** Classement général des joueurs (depuis la table Score). */
+/**
+ * Classement général : TOUS les joueurs (y compris ceux sans encore de points,
+ * notamment les comptes Google qui n'ont pas de ligne `Score` à l'inscription).
+ * Les bannis sont exclus.
+ */
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
-    const scores = await prisma.score.findMany({
-      include: { user: { include: { badges: { include: { badge: true } } } } },
-      orderBy: [{ points: "desc" }, { exactScores: "desc" }],
+    const users = await prisma.user.findMany({
+      where: { banned: false },
+      include: {
+        score: true,
+        badges: { include: { badge: true } },
+      },
     });
-    return scores.map((s, i) => ({
-      rank: i + 1,
-      name: s.user.name ?? "Anonyme",
-      email: s.user.email,
-      points: s.points,
-      exactScores: s.exactScores,
-      correctResults: s.correctResults,
-      badges: s.user.badges.map((b) => b.badge.key),
-    }));
+
+    return users
+      .map((u) => ({
+        name: u.name ?? "Anonyme",
+        email: u.email,
+        points: u.score?.points ?? 0,
+        exactScores: u.score?.exactScores ?? 0,
+        correctResults: u.score?.correctResults ?? 0,
+        badges: u.badges.map((b) => b.badge.key),
+      }))
+      .sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.exactScores - a.exactScores ||
+          b.correctResults - a.correctResults ||
+          a.name.localeCompare(b.name)
+      )
+      .map((entry, i) => ({ rank: i + 1, ...entry }));
   } catch {
     return [];
   }
