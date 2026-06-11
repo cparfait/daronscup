@@ -90,3 +90,28 @@ export async function getUnfinishedMatches(): Promise<
     return [];
   }
 }
+
+export type AdminMatchBrief = {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  finished: boolean;
+};
+
+/** TOUS les matchs (passés inclus) — pour l'import de pronos. */
+export async function getAllMatchesBrief(): Promise<AdminMatchBrief[]> {
+  try {
+    const matches = await prisma.match.findMany({
+      orderBy: { kickoffAt: "asc" },
+      include: { result: { select: { status: true } } },
+    });
+    return matches.map((m) => ({
+      id: m.id,
+      homeTeam: m.homeTeam,
+      awayTeam: m.awayTeam,
+      finished: m.result?.status === "FINISHED",
+    }));
+  } catch {
+    return [];
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Smile, Pin } from "lucide-react";
+import { Send, Smile, Pin, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 
@@ -15,7 +15,7 @@ type ChatMsg = {
 };
 
 type Props = {
-  currentUser: { id: string; name: string };
+  currentUser: { id: string; name: string; isAdmin: boolean };
   initial: ChatMsg[];
 };
 
@@ -70,6 +70,22 @@ export function ChatView({ currentUser, initial }: Props) {
     return () => clearInterval(t);
   }, [poll]);
 
+  async function handleDelete(id: string) {
+    // Retrait optimiste, restauration si l'API échoue.
+    const prev = messages;
+    setMessages((m) => m.filter((msg) => msg.id !== id));
+    try {
+      const res = await fetch("/api/messages", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) setMessages(prev);
+    } catch {
+      setMessages(prev);
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
@@ -113,11 +129,24 @@ export function ChatView({ currentUser, initial }: Props) {
 
         {messages.map((msg, i) => {
           const isOwn = msg.userId === currentUser.id;
+          const canDelete = isOwn || currentUser.isAdmin;
           return (
             <div
               key={msg.id}
-              className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+              className={`group flex items-center gap-1.5 ${isOwn ? "justify-end" : "justify-start"}`}
             >
+              {/* Bouton supprimer (côté gauche pour ses propres messages) */}
+              {canDelete && isOwn && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(msg.id)}
+                  title="Supprimer"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
+
               <Card
                 className={`relative max-w-[85%] overflow-hidden p-3 transition-all duration-200 ${
                   msg.pinned
@@ -149,6 +178,18 @@ export function ChatView({ currentUser, initial }: Props) {
 
                 <p className="text-sm leading-relaxed">{msg.text}</p>
               </Card>
+
+              {/* Bouton supprimer admin (messages des autres, côté droit) */}
+              {canDelete && !isOwn && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(msg.id)}
+                  title="Supprimer (admin)"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
             </div>
           );
         })}

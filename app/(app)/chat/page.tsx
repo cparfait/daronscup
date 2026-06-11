@@ -19,6 +19,7 @@ export default async function ChatPage() {
   const currentUser = {
     id: session?.user?.id ?? "",
     name: session?.user?.name ?? "Daron",
+    isAdmin: session?.user?.role === "ADMIN",
   };
 
   let initial: ChatMsg[] = [];

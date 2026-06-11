@@ -27,6 +27,8 @@
 #   AUTH_GOOGLE_SECRET   = (ton Google Client Secret)
 #   FOOTBALL_DATA_TOKEN  = (ton token football-data.org)
 #   POSTGRES_PASSWORD    = (mot de passe sécurisé)
+#   ADMIN_EMAIL          = admin            ← identifiant du compte admin
+#   ADMIN_PASSWORD       = (mot de passe admin, créé au 1er démarrage)
 # ──────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -87,6 +89,8 @@ services:
       FOOTBALL_DATA_TOKEN: "${FOOTBALL_DATA_TOKEN:-}"
       FOOTBALL_DATA_COMPETITION: "${FOOTBALL_DATA_COMPETITION:-WC}"
       SYNC_INTERVAL_MINUTES: "${SYNC_INTERVAL_MINUTES:-3}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       NODE_ENV: production
     healthcheck:
       test:

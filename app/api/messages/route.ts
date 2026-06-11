@@ -27,6 +27,28 @@ export async function GET(req: Request) {
   }
 }
 
+/** Suppression d'un message — par son auteur ou par un admin. */
+export async function DELETE(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Non connecté" }, { status: 401 });
+  }
+  const { id } = await req.json().catch(() => ({ id: null }));
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "Identifiant manquant" }, { status: 400 });
+  }
+  const msg = await prisma.message.findUnique({ where: { id } });
+  if (!msg) {
+    return NextResponse.json({ error: "Message introuvable" }, { status: 404 });
+  }
+  const isAdmin = session.user.role === "ADMIN";
+  if (msg.userId !== session.user.id && !isAdmin) {
+    return NextResponse.json({ error: "Action non autorisée" }, { status: 403 });
+  }
+  await prisma.message.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

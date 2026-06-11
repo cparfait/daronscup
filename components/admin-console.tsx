@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { AdminUser } from "@/lib/data/admin";
+import type { AdminUser, AdminMatchBrief } from "@/lib/data/admin";
 
 type UnfinishedMatch = {
   id: string;
@@ -25,15 +25,18 @@ type UnfinishedMatch = {
 export function AdminConsole({
   users,
   matches,
+  allMatches,
   currentUserId,
 }: {
   users: AdminUser[];
   matches: UnfinishedMatch[];
+  allMatches: AdminMatchBrief[];
   currentUserId: string;
 }) {
   return (
     <div className="grid gap-4">
       <SyncPanel />
+      <ImportPredictionPanel users={users} matches={allMatches} />
       <ManualScorePanel matches={matches} />
       <UsersPanel users={users} currentUserId={currentUserId} />
     </div>
@@ -183,6 +186,151 @@ function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
             <Button variant="gold" size="sm" onClick={submit} disabled={pending}>
               {pending ? <Loader2 className="animate-spin" /> : <Check />}
               Enregistrer le résultat
+            </Button>
+          </div>
+        )}
+
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Import d'un prono pour un joueur ─── */
+function ImportPredictionPanel({
+  users,
+  matches,
+}: {
+  users: AdminUser[];
+  matches: AdminMatchBrief[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+  const [userId, setUserId] = useState(users[0]?.id ?? "");
+  const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
+  const [home, setHome] = useState("");
+  const [away, setAway] = useState("");
+  const [joker, setJoker] = useState(false);
+
+  const submit = () =>
+    start(async () => {
+      if (!userId || !matchId || home === "" || away === "") {
+        flash("Choisis un joueur, un match et les deux scores.", false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/admin/prediction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            matchId,
+            homeScore: Number(home),
+            awayScore: Number(away),
+            joker,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(
+          data.scored > 0
+            ? "✓ Prono importé et crédité"
+            : data.alreadyScored
+              ? "✓ Prono mis à jour (points déjà comptés)"
+              : "✓ Prono importé",
+          true
+        );
+        setHome("");
+        setAway("");
+        setJoker(false);
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">📥 Import prono</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Reprends le prono d&apos;un joueur (autre appli). Verrou de coup
+          d&apos;envoi ignoré ; crédité si le match est terminé.
+        </p>
+
+        {users.length === 0 || matches.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">
+            Aucun joueur ou aucun match disponible.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <select
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+            >
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={matchId}
+              onChange={(e) => setMatchId(e.target.value)}
+              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+            >
+              {matches.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.homeTeam} – {m.awayTeam}
+                  {m.finished ? " ✓" : ""}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center justify-center gap-3">
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={home}
+                onChange={(e) => setHome(e.target.value)}
+                placeholder="0"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+              />
+              <span className="text-xl font-bold text-[var(--color-muted)]">–</span>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={away}
+                onChange={(e) => setAway(e.target.value)}
+                placeholder="0"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-center gap-2 text-sm text-[var(--color-muted)]">
+              <input
+                type="checkbox"
+                checked={joker}
+                onChange={(e) => setJoker(e.target.checked)}
+                className="size-4 accent-[var(--color-gold)]"
+              />
+              🃏 Joker (×2)
+            </label>
+
+            <Button variant="gold" size="sm" onClick={submit} disabled={pending}>
+              {pending ? <Loader2 className="animate-spin" /> : <Check />}
+              Importer le prono
             </Button>
           </div>
         )}

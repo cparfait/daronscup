@@ -7,8 +7,9 @@ import { z } from "zod";
 import { prisma } from "./prisma";
 import { authConfig } from "./auth.config";
 
+// L'identifiant accepte un email OU un nom d'utilisateur (ex. "admin").
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(3),
   password: z.string().min(8),
 });
 
