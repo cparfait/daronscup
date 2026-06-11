@@ -41,11 +41,13 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 
 # ─── Stage 4 : migrator ──────────────────────────────────────────────────────
-# Image dédiée à prisma db push — inclut node_modules complet (CLI + ses deps).
+# Image autonome dédiée à `prisma db push`. Fait son propre `npm ci` complet
+# pour garantir un node_modules cohérent (CLI Prisma + toutes ses deps
+# transitives : effect, c12, etc.) — indépendant de tout cache cross-stage.
 FROM node:22-alpine AS migrator
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-COPY --from=builder /app/lib/generated ./lib/generated
+RUN npm ci --ignore-scripts
 
 CMD ["node", "node_modules/prisma/build/index.js", "db", "push", "--skip-generate"]
