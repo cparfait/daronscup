@@ -49,13 +49,23 @@ export default async function DashboardPage() {
     .filter((m) => !m.result && new Date(m.kickoffAt) > new Date())
     .slice(0, 3);
 
-  const cup = "\u{1F3C6}";
   const avatar = session?.user?.image;
 
   return (
     <>
       <PageHeader
-        title={"Salut " + firstName + " " + cup}
+        title={
+          <span className="inline-flex items-center gap-2">
+            Salut {firstName}
+            <Image
+              src="/world-cup.png"
+              alt="Coupe du Monde"
+              width={30}
+              height={30}
+              className="inline-block drop-shadow-[0_0_6px_var(--color-gold)]/40"
+            />
+          </span>
+        }
         subtitle={"Pr\u00eat \u00e0 pronostiquer ?"}
         action={
           avatar ? (

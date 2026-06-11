@@ -23,8 +23,8 @@ export default async function LeaderboardPage() {
       {sorted.length === 0 && (
         <Card className="glass mt-4 p-8 text-center">
           <p className="text-sm text-[var(--color-muted)]">
-            Aucun joueur class\u00e9 pour l&apos;instant. Les points arrivent apr\u00e8s
-            les premiers matchs. \ud83c\udfc6
+            Aucun joueur classé pour l&apos;instant. Les points arrivent après
+            les premiers matchs. 🏆
           </p>
         </Card>
       )}
