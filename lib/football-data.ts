@@ -356,74 +356,100 @@ export async function applyMatchResult(
 // ─────────────────────────────────────────────
 
 async function checkAndAwardBadges(userId: string): Promise<void> {
-  const [score, existingBadges] = await Promise.all([
+  const [score, existingBadges, scoredPreds, allPreds] = await Promise.all([
     prisma.score.findUnique({ where: { userId } }),
     prisma.userBadge.findMany({
       where: { userId },
       include: { badge: { select: { key: true } } },
     }),
+    prisma.prediction.findMany({
+      where: { userId, pointsAwarded: { not: null } },
+      include: {
+        match: { select: { kickoffAt: true }, include: { result: true } },
+      },
+      orderBy: { match: { kickoffAt: "asc" } },
+    }),
+    prisma.prediction.findMany({
+      where: { userId },
+      include: { match: { select: { matchday: true } } },
+    }),
   ]);
 
   const hasBadge = new Set(existingBadges.map((b) => b.badge.key));
+  const points = score?.points ?? 0;
   const toAward: string[] = [];
+  const want = (key: string, cond: boolean) => {
+    if (cond && !hasBadge.has(key)) toAward.push(key);
+  };
 
-  // ── sniper : 10 scores exacts au total ──
-  if (!hasBadge.has("sniper") && (score?.exactScores ?? 0) >= 10) {
-    toAward.push("sniper");
-  }
+  const isExact = (p: (typeof scoredPreds)[number]) =>
+    !!p.match.result &&
+    p.homeScore === p.match.result.homeScore &&
+    p.awayScore === p.match.result.awayScore;
+
+  // ── Seuils simples ──
+  want("premier_pas", allPreds.length >= 1);
+  want("sniper", (score?.exactScores ?? 0) >= 10);
+  want("demi_centurion", points >= 50);
+  want("centurion", points >= 100);
+
+  // ── perfectionniste : un score exact avec joker ──
+  want("perfectionniste", scoredPreds.some((p) => p.joker && isExact(p)));
 
   // ── nostradamus : 3 scores exacts consécutifs ──
   if (!hasBadge.has("nostradamus")) {
-    const scoredPreds = await prisma.prediction.findMany({
-      where: { userId, pointsAwarded: { not: null } },
-      include: {
-        match: {
-          select: { kickoffAt: true },
-          include: { result: true },
-        },
-      },
-      orderBy: { match: { kickoffAt: "asc" } },
-    });
-
-    let consecutive = 0;
+    let streak = 0;
     for (const p of scoredPreds) {
-      const r = p.match.result;
-      if (r && p.homeScore === r.homeScore && p.awayScore === r.awayScore) {
-        consecutive++;
-        if (consecutive >= 3) {
-          toAward.push("nostradamus");
-          break;
-        }
-      } else {
-        consecutive = 0;
+      streak = isExact(p) ? streak + 1 : 0;
+      if (streak >= 3) {
+        toAward.push("nostradamus");
+        break;
       }
     }
   }
 
-  // ── meme_pas_mal : 0 pt sur toutes les prédictions d'une même journée ──
-  if (!hasBadge.has("meme_pas_mal")) {
-    const allPreds = await prisma.prediction.findMany({
-      where: { userId },
-      include: { match: { select: { matchday: true, result: true } } },
-    });
-
-    const byMatchday = new Map<number, typeof allPreds>();
-    for (const p of allPreds) {
-      const day = p.match.matchday;
-      if (day == null) continue;
-      const list = byMatchday.get(day) ?? [];
-      list.push(p);
-      byMatchday.set(day, list);
+  // ── en_feu : 5 bons résultats consécutifs (points > 0) ──
+  if (!hasBadge.has("en_feu")) {
+    let streak = 0;
+    for (const p of scoredPreds) {
+      streak = (p.pointsAwarded ?? 0) > 0 ? streak + 1 : 0;
+      if (streak >= 5) {
+        toAward.push("en_feu");
+        break;
+      }
     }
+  }
 
-    for (const dayPreds of byMatchday.values()) {
-      // Journée avec au moins 2 pronostics, tous terminés et tous à 0 pt
+  // ── Regroupement par journée (meme_pas_mal + assidu) ──
+  const byDay = new Map<number, typeof allPreds>();
+  for (const p of allPreds) {
+    const day = p.match.matchday;
+    if (day == null) continue;
+    const list = byDay.get(day) ?? [];
+    list.push(p);
+    byDay.set(day, list);
+  }
+
+  // ── meme_pas_mal : 0 pt sur une journée complète (≥2 pronos, tous terminés) ──
+  if (!hasBadge.has("meme_pas_mal")) {
+    for (const dayPreds of byDay.values()) {
       if (
         dayPreds.length >= 2 &&
         dayPreds.every((p) => p.pointsAwarded !== null) &&
         dayPreds.every((p) => p.pointsAwarded === 0)
       ) {
         toAward.push("meme_pas_mal");
+        break;
+      }
+    }
+  }
+
+  // ── assidu : tous les matchs d'une journée pronostiqués ──
+  if (!hasBadge.has("assidu")) {
+    for (const [day, dayPreds] of byDay.entries()) {
+      const total = await prisma.match.count({ where: { matchday: day } });
+      if (total >= 2 && dayPreds.length >= total) {
+        toAward.push("assidu");
         break;
       }
     }

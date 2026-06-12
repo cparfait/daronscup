@@ -2,10 +2,16 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
 const BADGES = [
+  { key: "premier_pas", label: "Premier pas", emoji: "👣", description: "Ton tout premier pronostic." },
   { key: "nostradamus", label: "Nostradamus", emoji: "🔮", description: "3 scores exacts consécutifs." },
-  { key: "daronissime", label: "Le Daronissime", emoji: "👑", description: "1ʳᵉ place en fin de tournoi." },
+  { key: "en_feu", label: "En feu", emoji: "🔥", description: "5 bons résultats d'affilée." },
+  { key: "perfectionniste", label: "Le Perfectionniste", emoji: "💎", description: "Un score exact avec le Joker." },
+  { key: "assidu", label: "L'Assidu", emoji: "📅", description: "Tous les matchs d'une journée pronostiqués." },
   { key: "meme_pas_mal", label: "Même pas mal", emoji: "💀", description: "0 pt sur une journée complète." },
   { key: "sniper", label: "Sniper", emoji: "🎯", description: "10 scores exacts au total." },
+  { key: "demi_centurion", label: "Cinquantenaire", emoji: "🎖️", description: "50 points au total." },
+  { key: "centurion", label: "Centurion", emoji: "💯", description: "100 points au total." },
+  { key: "daronissime", label: "Le Daronissime", emoji: "👑", description: "1ʳᵉ place en fin de tournoi." },
 ];
 
 /**
