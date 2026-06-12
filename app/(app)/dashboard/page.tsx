@@ -7,6 +7,7 @@ import { MatchCard } from "@/components/match-card";
 import { Flag } from "@/components/flag";
 import { Card } from "@/components/ui/card";
 import { LiveRefresher } from "@/components/live-refresher";
+import { HomeOnboarding } from "@/components/home-onboarding";
 import {
   getLiveLeaderboard,
   getMatches,
@@ -101,6 +102,8 @@ export default async function DashboardPage() {
           )
         }
       />
+
+      <HomeOnboarding />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
         <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
