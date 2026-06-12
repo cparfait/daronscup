@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -37,16 +38,29 @@ function Unit({ value, label }: { value: number; label: string }) {
 }
 
 export function CountdownTimer({ target, className }: Props) {
+  const router = useRouter();
   const targetDate = useMemo(
     () => (typeof target === "string" ? new Date(target) : target),
     [target]
   );
   const [time, setTime] = useState(() => diff(targetDate));
+  // true seulement si le compte à rebours était encore actif au montage :
+  // on ne rafraîchit qu'au PASSAGE à zéro, pas pour un match déjà commencé.
+  const wasRunning = useRef(time.total > 0);
 
   useEffect(() => {
     const t = setInterval(() => setTime(diff(targetDate)), 1000);
     return () => clearInterval(t);
   }, [targetDate]);
+
+  useEffect(() => {
+    if (time.total <= 0 && wasRunning.current) {
+      wasRunning.current = false;
+      // Re-rend la page côté serveur : verrouille le formulaire et révèle les
+      // pronos des autres joueurs au coup d'envoi, sans rechargement manuel.
+      router.refresh();
+    }
+  }, [time.total, router]);
 
   if (time.total <= 0) {
     return (

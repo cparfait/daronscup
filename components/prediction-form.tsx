@@ -49,9 +49,19 @@ function Stepper({
         >
           <Minus className="size-4" />
         </button>
-        <span className="w-8 text-center font-[family-name:var(--font-display)] text-4xl font-bold tabular-nums">
-          {value}
-        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label={`Score ${label}`}
+          disabled={disabled}
+          value={value}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => {
+            const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
+            onChange(Number.isNaN(n) ? 0 : Math.min(20, n));
+          }}
+          className="w-12 bg-transparent text-center font-[family-name:var(--font-display)] text-4xl font-bold tabular-nums outline-none disabled:opacity-60"
+        />
         <button
           type="button"
           aria-label={`Plus ${label}`}

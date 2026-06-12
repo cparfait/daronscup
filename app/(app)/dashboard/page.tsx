@@ -321,6 +321,25 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
+      <div className="mb-6 animate-stagger stagger-3">
+        <Link href="/standings" className="block">
+          <Card className="glass card-hover flex items-center gap-3 px-4 py-3.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)]/15 text-lg">
+              🏟️
+            </span>
+            <div className="flex-1">
+              <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+                Classements des poules
+              </p>
+              <p className="text-xs text-[var(--color-muted)]">
+                Le tableau des groupes de la Coupe du Monde
+              </p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+          </Card>
+        </Link>
+      </div>
+
       {upcomingMatches.length > 0 && (
         <div className="animate-stagger stagger-4">
           <h2 className="mb-3 font-[family-name:var(--font-display)] text-lg font-bold">

@@ -22,33 +22,47 @@ const ITEMS = [
   { href: "/profile", label: "Profil", icon: User },
 ] as const;
 
-const LAST_SEEN_KEY = "daronsfc-chat-lastseen";
+/**
+ * Clé localStorage du « dernier message vu », PAR groupe actif (cookie
+ * daronsfc_group). Sans ça, lire le tchat d'un groupe masquerait les
+ * non-lus des autres groupes.
+ */
+function lastSeenKey(): string {
+  const groupId =
+    document.cookie.match(/(?:^|;\s*)daronsfc_group=([^;]+)/)?.[1] ?? "default";
+  return `daronsfc-chat-lastseen-${groupId}`;
+}
 
-/** Détecte les nouveaux messages du tchat (pastille de notification). */
+/** Détecte les nouveaux messages du tchat du groupe actif (pastille). */
 function useChatUnread(pathname: string): boolean {
   const [unread, setUnread] = useState(false);
   const onChat = pathname.startsWith("/chat");
 
   const check = useCallback(async () => {
-    let since = localStorage.getItem(LAST_SEEN_KEY);
+    const key = lastSeenKey();
+    let since = localStorage.getItem(key);
     if (!since) {
       since = new Date().toISOString();
-      localStorage.setItem(LAST_SEEN_KEY, since);
+      localStorage.setItem(key, since);
     }
     try {
       const res = await fetch(`/api/messages?since=${encodeURIComponent(since)}`);
       if (!res.ok) return;
       const msgs: { timestamp: string }[] = await res.json();
-      if (msgs.length > 0) setUnread(true);
+      setUnread(msgs.length > 0);
     } catch {}
   }, []);
 
   useEffect(() => {
     if (onChat) {
-      // Sur le tchat : tout est lu, on met à jour le repère.
-      localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+      // Sur le tchat : tout est lu pour le groupe actif. On met le repère à
+      // jour en continu, pour couvrir aussi les messages reçus pendant qu'on lit.
+      const mark = () =>
+        localStorage.setItem(lastSeenKey(), new Date().toISOString());
+      mark();
       setUnread(false);
-      return;
+      const t = setInterval(mark, 5_000);
+      return () => clearInterval(t);
     }
     check();
     const t = setInterval(check, 20_000);

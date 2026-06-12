@@ -8,7 +8,7 @@ import { AdminConsole } from "@/components/admin-console";
 import {
   getAdminStats,
   getAdminUsers,
-  getUnfinishedMatches,
+  getMatchesForResultEntry,
   getAllMatchesBrief,
 } from "@/lib/data/admin";
 
@@ -24,7 +24,7 @@ export default async function AdminPage() {
   const [stats, users, matches, allMatches] = await Promise.all([
     getAdminStats(),
     getAdminUsers(),
-    getUnfinishedMatches(),
+    getMatchesForResultEntry(),
     getAllMatchesBrief(),
   ]);
 

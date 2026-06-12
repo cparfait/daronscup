@@ -2,15 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
-
-function urlBase64ToUint8Array(base64: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(b64);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
-}
+import {
+  pushSupported,
+  requestAndSubscribe,
+  unsubscribePush,
+} from "@/lib/push-client";
 
 /** Toggle d'activation des notifications push. `vapidKey` vient du serveur. */
 export function PushToggle({ vapidKey }: { vapidKey: string }) {
@@ -20,11 +16,7 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const ok =
-      typeof window !== "undefined" &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window &&
-      !!vapidKey;
+    const ok = pushSupported(vapidKey);
     setSupported(ok);
     if (!ok) return;
     navigator.serviceWorker.ready
@@ -39,19 +31,7 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
     setBusy(true);
     setError(null);
     try {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") throw new Error("Notifications refusées.");
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
-      });
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
-      });
-      if (!res.ok) throw new Error("Échec de l'enregistrement.");
+      await requestAndSubscribe(vapidKey);
       setEnabled(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
@@ -64,16 +44,7 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
     setBusy(true);
     setError(null);
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push/subscribe", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
-        await sub.unsubscribe();
-      }
+      await unsubscribePush();
       setEnabled(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");

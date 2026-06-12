@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
+import { compareRanked } from "@/lib/ranking";
 
 /**
  * Envoie les notifications push « résultat tombé » pour les matchs terminés
@@ -50,16 +51,22 @@ export async function POST(req: Request) {
   // Notification « tu t'es fait doubler » : joueurs dont le rang a baissé
   // depuis le dernier match (previousRank figé avant l'attribution des points).
   if (pending.length > 0) {
+    // Même comparateur que le classement affiché (snapshotRanks / leaderboard),
+    // sinon deux joueurs à égalité pourraient être « doublés » à tort.
     const scores = await prisma.score.findMany({
       where: { user: { banned: false } },
-      orderBy: [
-        { points: "desc" },
-        { exactScores: "desc" },
-        { correctResults: "desc" },
-      ],
-      select: { userId: true, previousRank: true },
+      select: {
+        userId: true,
+        previousRank: true,
+        points: true,
+        exactScores: true,
+        correctResults: true,
+        user: { select: { name: true } },
+      },
     });
     const dropped = scores
+      .map((s) => ({ ...s, name: s.user.name }))
+      .sort(compareRanked)
       .map((s, i) => ({ userId: s.userId, rank: i + 1, prev: s.previousRank }))
       .filter((s) => s.prev != null && s.rank > s.prev)
       .map((s) => s.userId);

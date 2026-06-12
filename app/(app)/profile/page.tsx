@@ -11,8 +11,14 @@ import {
   getBadges,
   getUserStats,
   getUserPredictions,
+  getJokerUsage,
 } from "@/lib/data/queries";
-import type { BadgeDef, UserStats, UserPrediction } from "@/lib/data/matches";
+import type {
+  BadgeDef,
+  UserStats,
+  UserPrediction,
+  JokerUsage,
+} from "@/lib/data/matches";
 import { computePoints } from "@/lib/scoring";
 import {
   Trophy,
@@ -37,11 +43,13 @@ export default async function ProfilePage() {
   let badges: BadgeDef[] = [];
   let stats: UserStats | null = null;
   let predictions: UserPrediction[] = [];
+  let jokers: JokerUsage | null = null;
   if (user?.id) {
-    [badges, stats, predictions] = await Promise.all([
+    [badges, stats, predictions, jokers] = await Promise.all([
       getBadges(),
       getUserStats(user.id),
       getUserPredictions(user.id),
+      getJokerUsage(user.id),
     ]);
   }
 
@@ -122,6 +130,51 @@ export default async function ProfilePage() {
           </Card>
         ))}
       </div>
+
+      {/* Jokers par phase */}
+      {jokers && (
+        <Card className="glass mb-6 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-lg">🃏</span>
+            <h3 className="font-[family-name:var(--font-display)] text-base font-bold tracking-wide">
+              Mes jokers
+            </h3>
+            <span className="ml-auto text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+              points ×2
+            </span>
+          </div>
+          <div className="flex flex-col gap-3">
+            {([
+              { label: "Phase de poules", data: jokers.group },
+              { label: "Phase finale", data: jokers.knockout },
+            ] as const).map(({ label, data }) => {
+              const left = Math.max(0, data.budget - data.used);
+              return (
+                <div key={label} className="flex items-center gap-3">
+                  <span className="w-32 shrink-0 text-sm text-[var(--color-cream)]">
+                    {label}
+                  </span>
+                  <div className="flex flex-1 items-center gap-1.5">
+                    {Array.from({ length: data.budget }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`h-2 flex-1 rounded-full ${
+                          i < data.used
+                            ? "bg-[var(--color-gold)]"
+                            : "bg-[var(--color-surface-3)]"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="w-14 shrink-0 text-right font-[family-name:var(--font-mono)] text-xs font-semibold text-[var(--color-muted)]">
+                    {left}/{data.budget}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Badges section */}
       <div className="mb-6">

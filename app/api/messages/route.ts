@@ -28,7 +28,9 @@ export async function GET(req: Request) {
     if (!active) return NextResponse.json([]);
     const { searchParams } = new URL(req.url);
     const since = searchParams.get("since");
-    const messages = await prisma.message.findMany({
+    // Avec `since` (polling) : les nouveaux messages, en ordre chronologique.
+    // Sans `since` : les 100 DERNIERS (desc + reverse), pas les 100 premiers.
+    let messages = await prisma.message.findMany({
       where: {
         groupId: active.id,
         ...(since ? { createdAt: { gt: new Date(since) } } : {}),
@@ -37,9 +39,10 @@ export async function GET(req: Request) {
         user: { select: { id: true, name: true } },
         reactions: { select: { emoji: true, userId: true } },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: since ? "asc" : "desc" },
       take: 100,
     });
+    if (!since) messages = messages.reverse();
     return NextResponse.json(
       messages.map((m) => ({
         id: m.id,
@@ -98,6 +101,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Non connecté" }, { status: 401 });
   }
   try {
+    // La session JWT ne reflète pas un bannissement prononcé après le login.
+    const me = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { banned: true },
+    });
+    if (!me || me.banned) {
+      return NextResponse.json({ error: "Compte suspendu." }, { status: 403 });
+    }
     const active = await getActiveGroup(session.user.id);
     if (!active) {
       return NextResponse.json({ error: "Aucun groupe actif" }, { status: 400 });

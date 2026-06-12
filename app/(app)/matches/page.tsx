@@ -36,7 +36,7 @@ export default async function MatchesPage() {
   // Pronostics de l'utilisateur + jokers utilisés par phase (pour l'inline).
   const predByMatch = new Map<
     string,
-    { homeScore: number; awayScore: number; joker: boolean }
+    { homeScore: number; awayScore: number; joker: boolean; comment?: string }
   >();
   let groupJokers = 0;
   let knockoutJokers = 0;
@@ -51,6 +51,7 @@ export default async function MatchesPage() {
           homeScore: p.homeScore,
           awayScore: p.awayScore,
           joker: p.joker,
+          comment: p.comment ?? undefined,
         });
         if (p.joker) {
           if (jokerPhase(p.match.stage) === "group") groupJokers++;

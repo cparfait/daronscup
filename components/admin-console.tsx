@@ -14,14 +14,11 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { AdminUser, AdminMatchBrief } from "@/lib/data/admin";
-
-type UnfinishedMatch = {
-  id: string;
-  homeTeam: string;
-  awayTeam: string;
-  kickoffAt: string;
-};
+import type {
+  AdminUser,
+  AdminMatchBrief,
+  AdminMatchResult,
+} from "@/lib/data/admin";
 
 export function AdminConsole({
   users,
@@ -30,7 +27,7 @@ export function AdminConsole({
   currentUserId,
 }: {
   users: AdminUser[];
-  matches: UnfinishedMatch[];
+  matches: AdminMatchResult[];
   allMatches: AdminMatchBrief[];
   currentUserId: string;
 }) {
@@ -40,6 +37,7 @@ export function AdminConsole({
       <InvitePanel />
       <ImportPredictionPanel users={users} matches={allMatches} />
       <ManualScorePanel matches={matches} />
+      <RescorePanel />
       <UsersPanel users={users} currentUserId={currentUserId} />
       <CloseTournamentPanel />
       <ResetPanel />
@@ -256,14 +254,27 @@ function SyncPanel() {
   );
 }
 
-/* ─── Saisie manuelle d'un score ─── */
-function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
+/* ─── Saisie / correction manuelle d'un score ─── */
+function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const { msg, flash } = useFeedback();
   const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
-  const [home, setHome] = useState("");
-  const [away, setAway] = useState("");
+  const selected = matches.find((m) => m.id === matchId);
+  // Pré-remplit avec le score déjà enregistré (cas correction d'un match fini).
+  const [home, setHome] = useState(
+    selected?.homeScore != null ? String(selected.homeScore) : ""
+  );
+  const [away, setAway] = useState(
+    selected?.awayScore != null ? String(selected.awayScore) : ""
+  );
+
+  const onSelect = (id: string) => {
+    setMatchId(id);
+    const m = matches.find((x) => x.id === id);
+    setHome(m?.homeScore != null ? String(m.homeScore) : "");
+    setAway(m?.awayScore != null ? String(m.awayScore) : "");
+  };
 
   const submit = () =>
     start(async () => {
@@ -271,6 +282,13 @@ function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
         flash("Sélectionne un match et saisis les deux scores.", false);
         return;
       }
+      if (
+        selected?.finished &&
+        !confirm(
+          "Ce match est déjà terminé. Corriger le score RECALCULE les points de tous les joueurs concernés. Continuer ?"
+        )
+      )
+        return;
       try {
         const res = await fetch("/api/admin/result", {
           method: "POST",
@@ -283,9 +301,12 @@ function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Erreur");
-        flash(`✓ Résultat enregistré (${data.scored} pronos crédités)`, true);
-        setHome("");
-        setAway("");
+        flash(
+          selected?.finished
+            ? `✓ Score corrigé (${data.scored} pronos recalculés)`
+            : `✓ Résultat enregistré (${data.scored} pronos crédités)`,
+          true
+        );
         router.refresh();
       } catch (e) {
         flash(e instanceof Error ? e.message : "Erreur", false);
@@ -297,26 +318,35 @@ function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
       <CardContent className="p-4">
         <CardTitle className="text-base">📝 Score manuel</CardTitle>
         <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
-          Saisis un résultat si l&apos;API est en retard.
+          Saisis un résultat si l&apos;API est en retard, ou corrige un match
+          déjà terminé (les points sont recalculés).
         </p>
 
         {matches.length === 0 ? (
           <p className="text-sm text-[var(--color-muted)]">
-            Aucun match en attente de résultat.
+            Aucun match commencé pour l&apos;instant.
           </p>
         ) : (
           <div className="flex flex-col gap-3">
             <select
               value={matchId}
-              onChange={(e) => setMatchId(e.target.value)}
+              onChange={(e) => onSelect(e.target.value)}
               className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
             >
               {matches.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.homeTeam} – {m.awayTeam}
+                  {m.finished ? "  ✓ terminé" : ""}
                 </option>
               ))}
             </select>
+
+            {selected?.finished && (
+              <p className="rounded-lg bg-[var(--color-gold)]/10 px-3 py-2 text-xs text-[var(--color-gold)]">
+                ⚠️ Match terminé — enregistrer recalcule les points de tous les
+                joueurs.
+              </p>
+            )}
 
             <div className="flex items-center justify-center gap-3">
               <input
@@ -342,11 +372,63 @@ function ManualScorePanel({ matches }: { matches: UnfinishedMatch[] }) {
 
             <Button variant="gold" size="sm" onClick={submit} disabled={pending}>
               {pending ? <Loader2 className="animate-spin" /> : <Check />}
-              Enregistrer le résultat
+              {selected?.finished ? "Corriger le résultat" : "Enregistrer le résultat"}
             </Button>
           </div>
         )}
 
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Recalcul global des points (changement de barème) ─── */
+function RescorePanel() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+
+  const rescore = () =>
+    start(async () => {
+      if (
+        !confirm(
+          "Recalculer TOUS les points à partir des résultats enregistrés ?\n\nUtile après un changement de barème. Sans danger : l'opération est idempotente."
+        )
+      )
+        return;
+      try {
+        const res = await fetch("/api/admin/rescore", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(
+          `✓ ${data.matches} matchs ré-appliqués, ${data.predictions} pronos recalculés.`,
+          true
+        );
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">♻️ Recalculer les points</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Ré-applique le barème actuel à tous les matchs terminés (à lancer
+          après une mise à jour des règles de calcul).
+        </p>
+        <Button variant="primary" size="sm" onClick={rescore} disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+          Tout recalculer
+        </Button>
         {msg && (
           <p
             className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}

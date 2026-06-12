@@ -32,39 +32,59 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validation du lien d'invitation, s'il est fourni.
-    let invite = null;
+    // Validation + consommation ATOMIQUE du lien d'invitation : le décrément
+    // conditionnel (usesLeft > 0) empêche deux inscriptions simultanées de
+    // passer toutes les deux sur le dernier usage.
+    let claimedInviteId: string | null = null;
     if (inviteToken) {
-      invite = await prisma.invite.findUnique({ where: { token: inviteToken } });
-      if (
-        !invite ||
-        (invite.expiresAt && invite.expiresAt < new Date()) ||
-        (invite.usesLeft != null && invite.usesLeft <= 0)
-      ) {
+      const invite = await prisma.invite.findUnique({
+        where: { token: inviteToken },
+      });
+      if (!invite || (invite.expiresAt && invite.expiresAt < new Date())) {
         return NextResponse.json(
           { error: "Lien d'invitation invalide ou expiré." },
           { status: 400 }
         );
       }
+      if (invite.usesLeft != null) {
+        const claimed = await prisma.invite.updateMany({
+          where: { id: invite.id, usesLeft: { gt: 0 } },
+          data: { usesLeft: { decrement: 1 } },
+        });
+        if (claimed.count === 0) {
+          return NextResponse.json(
+            { error: "Lien d'invitation invalide ou expiré." },
+            { status: 400 }
+          );
+        }
+        claimedInviteId = invite.id;
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        score: { create: {} },
-      },
-    });
-
-    // Décrémente l'invitation consommée.
-    if (invite && invite.usesLeft != null) {
-      await prisma.invite.update({
-        where: { id: invite.id },
-        data: { usesLeft: { decrement: 1 } },
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          score: { create: {} },
+        },
       });
+    } catch (err) {
+      // L'inscription a échoué après consommation de l'invitation : on rend
+      // l'usage (best effort) pour ne pas griller le lien.
+      if (claimedInviteId) {
+        await prisma.invite
+          .update({
+            where: { id: claimedInviteId },
+            data: { usesLeft: { increment: 1 } },
+          })
+          .catch(() => {});
+      }
+      throw err;
     }
 
     // Rejoint le groupe d'amis si la création vient d'un lien de groupe.

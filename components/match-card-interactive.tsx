@@ -3,7 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Minus, Plus, Check, Loader2, Lock, ChevronRight, Radio } from "lucide-react";
+import {
+  Minus,
+  Plus,
+  Check,
+  Loader2,
+  Lock,
+  ChevronRight,
+  Radio,
+  MessageSquarePlus,
+} from "lucide-react";
 import { CountdownTimer } from "./countdown-timer";
 import { Card } from "./ui/card";
 import { Flag } from "./flag";
@@ -13,7 +22,12 @@ import { STAGE_LABELS, type Match } from "@/lib/data/matches";
 
 type Props = {
   match: Match;
-  prediction?: { homeScore: number; awayScore: number; joker: boolean };
+  prediction?: {
+    homeScore: number;
+    awayScore: number;
+    joker: boolean;
+    comment?: string;
+  };
   jokersLeft: number;
   jokerBudget: number;
 };
@@ -47,9 +61,19 @@ function ScoreStepper({
         >
           <Minus className="size-3.5" />
         </button>
-        <span className="w-6 text-center font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">
-          {value}
-        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label={`Score ${name}`}
+          disabled={disabled}
+          value={value}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => {
+            const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
+            onChange(Number.isNaN(n) ? 0 : Math.min(20, n));
+          }}
+          className="w-6 bg-transparent text-center font-[family-name:var(--font-display)] text-xl font-bold tabular-nums outline-none disabled:opacity-60"
+        />
         <button
           type="button"
           aria-label={`Plus ${name}`}
@@ -75,6 +99,8 @@ export function MatchCardInteractive({
   const [home, setHome] = useState(prediction?.homeScore ?? 0);
   const [away, setAway] = useState(prediction?.awayScore ?? 0);
   const [joker, setJoker] = useState(prediction?.joker ?? false);
+  const [comment, setComment] = useState(prediction?.comment ?? "");
+  const [showComment, setShowComment] = useState(!!prediction?.comment);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,7 +125,8 @@ export function MatchCardInteractive({
   const dirty =
     home !== (prediction?.homeScore ?? 0) ||
     away !== (prediction?.awayScore ?? 0) ||
-    joker !== (prediction?.joker ?? false);
+    joker !== (prediction?.joker ?? false) ||
+    comment.trim() !== (prediction?.comment ?? "");
 
   const save = () =>
     start(async () => {
@@ -113,6 +140,7 @@ export function MatchCardInteractive({
             homeScore: home,
             awayScore: away,
             joker,
+            comment: comment.trim() || undefined,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -266,6 +294,28 @@ export function MatchCardInteractive({
                   : "Valider"}
             </button>
           </div>
+
+          {/* Commentaire (optionnel, visible des autres après le coup d'envoi) */}
+          {showComment ? (
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              maxLength={280}
+              disabled={pending}
+              autoFocus
+              placeholder="Un petit tacle pour tes potes ? (visible après le coup d'envoi)"
+              className="h-16 w-full resize-none rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5 text-xs outline-none focus:border-[var(--color-pitch)]"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowComment(true)}
+              className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] transition-colors hover:text-[var(--color-cream)]"
+            >
+              <MessageSquarePlus className="size-3.5" />
+              Ajouter un mot
+            </button>
+          )}
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>

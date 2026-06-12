@@ -8,6 +8,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { computePoints } from "@/lib/scoring";
+import { compareRanked } from "@/lib/ranking";
+import { jokerPhase, JOKER_BUDGET } from "@/lib/jokers";
 import type {
   Match,
   StandingTeam,
@@ -18,6 +20,7 @@ import type {
   BadgeDef,
   UserPrediction,
   UserStats,
+  JokerUsage,
 } from "./matches";
 
 type DbMatch = {
@@ -180,13 +183,7 @@ export async function getLeaderboard(
         correctResults: u.score?.correctResults ?? 0,
         badges: u.badges.map((b) => b.badge.key),
       }))
-      .sort(
-        (a, b) =>
-          b.points - a.points ||
-          b.exactScores - a.exactScores ||
-          b.correctResults - a.correctResults ||
-          a.name.localeCompare(b.name)
-      )
+      .sort(compareRanked)
       .map((entry, i) => ({ rank: i + 1, ...entry }));
   } catch {
     return [];
@@ -231,6 +228,22 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
       }
     }
 
+    // Rang « acquis » (points définitifs uniquement), calculé sur la MÊME base
+    // que `previousRank` (cf. snapshotRanks). C'est lui qui sert aux flèches
+    // d'évolution → cohérent : pendant un match en cours, aucun point n'est
+    // encore acquis, donc les flèches ne bougent qu'au coup de sifflet final.
+    const committedRank = new Map<string, number>();
+    [...users]
+      .map((u) => ({
+        userId: u.id,
+        name: u.name,
+        points: u.score?.points ?? 0,
+        exactScores: u.score?.exactScores ?? 0,
+        correctResults: u.score?.correctResults ?? 0,
+      }))
+      .sort(compareRanked)
+      .forEach((e, i) => committedRank.set(e.userId, i + 1));
+
     const entries = users
       .map((u) => {
         const points = u.score?.points ?? 0;
@@ -243,20 +256,29 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
           livePoints,
           total: points + livePoints,
           exactScores: u.score?.exactScores ?? 0,
+          correctResults: u.score?.correctResults ?? 0,
           badges: u.badges.map((b) => b.badge.key),
           previousRank: u.score?.previousRank ?? null,
         };
       })
-      .sort(
-        (a, b) =>
-          b.total - a.total ||
-          b.exactScores - a.exactScores ||
-          a.name.localeCompare(b.name)
+      // Tri live : même comparateur, mais sur le total (acquis + provisoire).
+      .sort((a, b) =>
+        compareRanked({ ...a, points: a.total }, { ...b, points: b.total })
       )
-      .map(({ previousRank, ...e }, i) => ({
+      .map((e, i) => ({
         rank: i + 1,
-        evolution: previousRank != null ? previousRank - (i + 1) : null,
-        ...e,
+        evolution:
+          e.previousRank != null
+            ? e.previousRank - (committedRank.get(e.userId) ?? i + 1)
+            : null,
+        userId: e.userId,
+        name: e.name,
+        email: e.email,
+        points: e.points,
+        livePoints: e.livePoints,
+        total: e.total,
+        exactScores: e.exactScores,
+        badges: e.badges,
       }));
 
     return { entries, hasLive: liveResults.length > 0 };
@@ -392,6 +414,32 @@ export async function getMyPrediction(
     return p;
   } catch {
     return null;
+  }
+}
+
+/** Jokers utilisés par phase pour un joueur (vue d'ensemble). */
+export async function getJokerUsage(userId: string): Promise<JokerUsage> {
+  const empty: JokerUsage = {
+    group: { used: 0, budget: JOKER_BUDGET.group },
+    knockout: { used: 0, budget: JOKER_BUDGET.knockout },
+  };
+  try {
+    const preds = await prisma.prediction.findMany({
+      where: { userId, joker: true },
+      include: { match: { select: { stage: true } } },
+    });
+    let group = 0;
+    let knockout = 0;
+    for (const p of preds) {
+      if (jokerPhase(p.match.stage) === "group") group++;
+      else knockout++;
+    }
+    return {
+      group: { used: group, budget: JOKER_BUDGET.group },
+      knockout: { used: knockout, budget: JOKER_BUDGET.knockout },
+    };
+  } catch {
+    return empty;
   }
 }
 

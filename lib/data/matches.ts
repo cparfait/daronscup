@@ -93,6 +93,12 @@ export type UserStats = {
   badges: string[];
 };
 
+/** Jokers utilisés / budget, par phase de la compétition. */
+export type JokerUsage = {
+  group: { used: number; budget: number };
+  knockout: { used: number; budget: number };
+};
+
 /** Définition d'un badge (catalogue applicatif). */
 export type BadgeDef = {
   key: string;

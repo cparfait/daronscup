@@ -45,16 +45,16 @@ export async function POST(req: Request) {
 
   await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
-    // Sur modification, on ne touche pas à pointsAwarded (évite le double comptage).
     update: { homeScore, awayScore, joker, submittedAt: new Date() },
     create: { userId, matchId, homeScore, awayScore, joker },
   });
 
-  // Crédite immédiatement si le match est terminé ET que ce prono n'a pas
-  // déjà été compté (nouveau prono, ou prono encore non scoré).
+  // Si le match est terminé, on (re)calcule : applyMatchResult recalcule
+  // intégralement le score du joueur, donc une modification d'un prono déjà
+  // compté est correctement répercutée (plus de points figés).
   let scored = 0;
   const alreadyScored = existing != null && existing.pointsAwarded != null;
-  if (match.result?.status === "FINISHED" && !alreadyScored) {
+  if (match.result?.status === "FINISHED") {
     try {
       const r = await applyMatchResult(
         matchId,

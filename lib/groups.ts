@@ -70,6 +70,34 @@ export async function requireActiveGroup(userId: string): Promise<GroupBrief> {
   return active;
 }
 
+/**
+ * À appeler AVANT de supprimer un compte : pour chaque groupe dont
+ * l'utilisateur est OWNER, transmet la propriété au plus ancien autre membre.
+ * Si le groupe n'a aucun autre membre, il est supprimé (avec ses messages) —
+ * sinon il resterait un groupe fantôme inaccessible.
+ */
+export async function reassignOwnedGroups(userId: string): Promise<void> {
+  const owned = await prisma.groupMember.findMany({
+    where: { userId, role: "OWNER" },
+    select: { groupId: true },
+  });
+  for (const { groupId } of owned) {
+    const heir = await prisma.groupMember.findFirst({
+      where: { groupId, userId: { not: userId } },
+      orderBy: { joinedAt: "asc" },
+      select: { userId: true },
+    });
+    if (heir) {
+      await prisma.groupMember.update({
+        where: { groupId_userId: { groupId, userId: heir.userId } },
+        data: { role: "OWNER" },
+      });
+    } else {
+      await prisma.group.delete({ where: { id: groupId } });
+    }
+  }
+}
+
 /** Ids des membres d'un groupe (pour filtrer un classement). */
 export async function getGroupMemberIds(groupId: string): Promise<string[]> {
   try {

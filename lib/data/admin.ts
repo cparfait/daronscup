@@ -91,21 +91,40 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   }
 }
 
-/** Matchs non encore terminés (pour la saisie manuelle d'un score). */
-export async function getUnfinishedMatches(): Promise<
-  { id: string; homeTeam: string; awayTeam: string; kickoffAt: string }[]
-> {
+export type AdminMatchResult = {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  kickoffAt: string;
+  /** Résultat déjà saisi (terminé) → permet la correction + le pré-remplissage. */
+  finished: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
+};
+
+/**
+ * Matchs éligibles à la saisie manuelle d'un score : ceux dont le coup d'envoi
+ * est passé OU qui ont déjà un résultat. Les matchs terminés sont inclus pour
+ * permettre une CORRECTION (le score saisi recalcule alors les points).
+ * Triés du plus récent au plus ancien.
+ */
+export async function getMatchesForResultEntry(): Promise<AdminMatchResult[]> {
   try {
     const matches = await prisma.match.findMany({
-      where: { result: { is: null } },
-      orderBy: { kickoffAt: "asc" },
-      select: { id: true, homeTeam: true, awayTeam: true, kickoffAt: true },
+      where: {
+        OR: [{ kickoffAt: { lte: new Date() } }, { result: { isNot: null } }],
+      },
+      orderBy: { kickoffAt: "desc" },
+      include: { result: { select: { homeScore: true, awayScore: true, status: true } } },
     });
     return matches.map((m) => ({
       id: m.id,
       homeTeam: m.homeTeam,
       awayTeam: m.awayTeam,
       kickoffAt: m.kickoffAt.toISOString(),
+      finished: m.result?.status === "FINISHED",
+      homeScore: m.result?.homeScore ?? null,
+      awayScore: m.result?.awayScore ?? null,
     }));
   } catch {
     return [];

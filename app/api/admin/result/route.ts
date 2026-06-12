@@ -28,7 +28,10 @@ export async function POST(req: Request) {
 
   const { matchId, homeScore, awayScore } = parsed.data;
   try {
-    const { scored } = await applyMatchResult(matchId, homeScore, awayScore);
+    // force: recalcule même à score identique (ré-application du barème).
+    const { scored } = await applyMatchResult(matchId, homeScore, awayScore, {
+      force: true,
+    });
     return NextResponse.json({ ok: true, scored });
   } catch {
     return NextResponse.json({ error: "Erreur lors de l'enregistrement." }, { status: 500 });

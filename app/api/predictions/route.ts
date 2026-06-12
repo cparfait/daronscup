@@ -39,7 +39,15 @@ export async function POST(req: Request) {
   const { matchId, homeScore, awayScore, joker, comment } = parsed.data;
   const userId = session.user.id;
 
-  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  const [match, me] = await Promise.all([
+    prisma.match.findUnique({ where: { id: matchId } }),
+    // La session JWT ne reflète pas un bannissement prononcé après le login :
+    // on vérifie en base à chaque écriture.
+    prisma.user.findUnique({ where: { id: userId }, select: { banned: true } }),
+  ]);
+  if (!me || me.banned) {
+    return NextResponse.json({ error: "Compte suspendu." }, { status: 403 });
+  }
   if (!match) {
     return NextResponse.json({ error: "Match introuvable." }, { status: 404 });
   }

@@ -19,7 +19,7 @@
   --color-surface-3: #222222;
   --color-border-subtle: #1f1f1f;
   --color-border-medium: #2a2a2a;
-  --color-muted: #8a8a8a;
+  --color-muted: #9ca3af;
   --color-danger: #ef4444;
   --color-info: #3b82f6;
 
@@ -210,9 +210,43 @@ body {
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.1);
 }
 
+/* Pas de contour au focus souris/tactile… */
 input:focus,
-textarea:focus {
+textarea:focus,
+button:focus,
+a:focus,
+select:focus {
   outline: none;
+}
+
+/* …mais un anneau net au focus CLAVIER (accessibilité). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-pitch-bright);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respecte le réglage système « réduire les animations ». */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Les éléments animés en fondu doivent rester visibles. */
+  .animate-stagger,
+  .page-enter,
+  .landing-dot {
+    opacity: 1 !important;
+  }
 }
 
 .stagger-1 { animation-delay: 0.05s; }

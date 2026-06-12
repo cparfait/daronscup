@@ -32,15 +32,19 @@ export default async function ChatPage() {
 
   let initial: ChatMsg[] = [];
   try {
-    const rows = await prisma.message.findMany({
-      where: { groupId: activeGroup.id },
-      include: {
-        user: { select: { id: true, name: true } },
-        reactions: { select: { emoji: true, userId: true } },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 50,
-    });
+    // Les 50 DERNIERS messages (desc + reverse) — un take asc renverrait les
+    // 50 plus anciens et le fil semblerait figé au-delà de 50 messages.
+    const rows = (
+      await prisma.message.findMany({
+        where: { groupId: activeGroup.id },
+        include: {
+          user: { select: { id: true, name: true } },
+          reactions: { select: { emoji: true, userId: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+    ).reverse();
     initial = rows.map((m) => {
       const map = new Map<string, { emoji: string; count: number; mine: boolean }>();
       for (const r of m.reactions) {

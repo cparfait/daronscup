@@ -9,6 +9,7 @@
 import { prisma } from "./prisma";
 import { countryCode } from "./flags";
 import { computePoints } from "./scoring";
+import { compareRanked } from "./ranking";
 import type { Stage } from "./data/matches";
 
 const BASE_URL = "https://api.football-data.org/v4";
@@ -149,17 +150,27 @@ function mapGroup(group: string | null): string | null {
   return m?.[1] ? m[1].toUpperCase() : null;
 }
 
+// Horodatage du dernier sync RÉUSSI (mis à jour par tout appel à syncMatches,
+// y compris la boucle d'instrumentation) + verrou anti-concurrence intra-process.
+// Best-effort : sur un déploiement multi-réplicas, un store partagé (Redis/DB)
+// serait nécessaire pour dédupliquer entre instances.
 let lastSyncAt = 0;
+let syncInFlight: Promise<{ matches: number; results: number }> | null = null;
 
 /**
- * Déclenche syncMatches() seulement si le dernier sync date de plus de
+ * Déclenche syncMatches() seulement si le dernier sync réussi date de plus de
  * `minIntervalMs` ms. Utilisé pour les déclenchements automatiques (login,
  * navigation) sans risquer de spammer l'API football-data.org (10 req/min).
+ * Coalesce les appels concurrents : deux navigations simultanées ne lancent
+ * qu'un seul appel réseau.
  */
 export async function maybeSyncMatches(minIntervalMs = 2 * 60_000): Promise<void> {
-  const now = Date.now();
-  if (now - lastSyncAt < minIntervalMs) return;
-  lastSyncAt = now;
+  if (Date.now() - lastSyncAt < minIntervalMs) return;
+  if (syncInFlight) {
+    // Un sync est déjà en cours : on s'y rattache plutôt que d'en lancer un 2ᵉ.
+    await syncInFlight.catch(() => {});
+    return;
+  }
   try {
     const result = await syncMatches();
     console.log(
@@ -173,9 +184,24 @@ export async function maybeSyncMatches(minIntervalMs = 2 * 60_000): Promise<void
 /**
  * Synchronise les matchs de la compétition vers la base.
  * Idempotent : upsert sur `externalId`. Renvoie les compteurs.
+ *
+ * Met à jour `lastSyncAt` et partage un verrou anti-concurrence avec
+ * maybeSyncMatches() : un sync auto (instrumentation) repousse donc d'autant
+ * les syncs déclenchés par la navigation.
  */
 export async function syncMatches(
   competition = COMPETITION
+): Promise<{ matches: number; results: number }> {
+  if (syncInFlight) return syncInFlight;
+  syncInFlight = runSyncMatches(competition).finally(() => {
+    lastSyncAt = Date.now();
+    syncInFlight = null;
+  });
+  return syncInFlight;
+}
+
+async function runSyncMatches(
+  competition: string
 ): Promise<{ matches: number; results: number }> {
   const data = await apiFetch<FdMatchesResponse>(
     `/competitions/${competition}/matches`
@@ -244,6 +270,7 @@ async function snapshotRanks(): Promise<void> {
     where: { banned: false },
     select: {
       id: true,
+      name: true,
       score: {
         select: { points: true, exactScores: true, correctResults: true },
       },
@@ -253,14 +280,13 @@ async function snapshotRanks(): Promise<void> {
   const ordered = users
     .map((u) => ({
       userId: u.id,
+      name: u.name,
       hasScore: u.score != null,
       points: u.score?.points ?? 0,
-      exact: u.score?.exactScores ?? 0,
-      correct: u.score?.correctResults ?? 0,
+      exactScores: u.score?.exactScores ?? 0,
+      correctResults: u.score?.correctResults ?? 0,
     }))
-    .sort(
-      (a, b) => b.points - a.points || b.exact - a.exact || b.correct - a.correct
-    );
+    .sort(compareRanked);
 
   let rank = 1;
   for (const o of ordered) {
@@ -295,25 +321,59 @@ export async function hasActiveMatchWindow(): Promise<boolean> {
 }
 
 /**
- * Enregistre le résultat d'un match et attribue les points correspondants.
- * Idempotent : seules les prédictions non encore traitées (pointsAwarded null)
- * sont créditées, donc un re-appel avec le même résultat ne double pas les points.
+ * Enregistre (ou corrige) le résultat d'un match et (re)calcule les points.
+ *
+ * Robuste aux CORRECTIONS : au lieu d'incrémenter, on RECALCULE intégralement
+ * le score de chaque joueur concerné à partir de tous ses pronos terminés. Un
+ * re-appel avec un score corrigé met donc le classement à jour correctement
+ * (et un re-appel à l'identique est un no-op). Le tout dans une transaction →
+ * pas d'état partiel en cas de coupure.
+ *
  * Réutilisé par la synchro automatique ET la saisie manuelle (console admin).
+ * `force: true` (admin) saute le fast-path et recalcule même si le résultat
+ * est identique — utile pour ré-appliquer un barème qui a changé.
  */
 export async function applyMatchResult(
   matchId: string,
   homeScore: number,
-  awayScore: number
+  awayScore: number,
+  opts: { force?: boolean } = {}
 ): Promise<{ scored: number }> {
-  const preds = await prisma.prediction.findMany({
-    where: { matchId, pointsAwarded: null },
+  // Fast-path pour la sync auto (toutes les 90 s en live) : si ce résultat est
+  // déjà enregistré à l'identique et qu'aucun prono n'attend de points, il n'y
+  // a rien à faire — on évite de rouvrir transaction + recalcul + badges pour
+  // chaque match terminé à chaque cycle.
+  if (!opts.force) {
+    const existing = await prisma.result.findUnique({ where: { matchId } });
+    if (
+      existing?.status === "FINISHED" &&
+      existing.homeScore === homeScore &&
+      existing.awayScore === awayScore
+    ) {
+      const pending = await prisma.prediction.count({
+        where: { matchId, pointsAwarded: null },
+      });
+      if (pending === 0) return { scored: 0 };
+    }
+  }
+
+  const preds = await prisma.prediction.findMany({ where: { matchId } });
+
+  // Ce résultat change-t-il réellement quelque chose ? (nouveau résultat ou
+  // points d'au moins un prono différents de ce qui est déjà crédité)
+  const changed = preds.some((p) => {
+    const pts = computePoints(
+      { homeScore: p.homeScore, awayScore: p.awayScore },
+      { homeScore, awayScore },
+      p.joker
+    ).points;
+    return p.pointsAwarded !== pts;
   });
 
-  // Si ce match va effectivement créditer des points, on fige d'abord le
-  // classement actuel (= rang AVANT ce match) pour les flèches d'évolution.
-  // Défensif : un souci ici (ex. colonne previousRank absente) ne doit pas
-  // empêcher l'attribution des points.
-  if (preds.length > 0) {
+  // On fige le classement courant (= rang AVANT ce match) pour les flèches
+  // d'évolution — uniquement si les rangs vont bouger. Défensif : un souci ici
+  // ne doit pas empêcher l'attribution des points.
+  if (changed && preds.length > 0) {
     try {
       await snapshotRanks();
     } catch (e) {
@@ -321,38 +381,72 @@ export async function applyMatchResult(
     }
   }
 
-  await prisma.result.upsert({
-    where: { matchId },
-    update: { homeScore, awayScore, status: "FINISHED" },
-    create: { matchId, homeScore, awayScore, status: "FINISHED" },
-  });
+  // Écriture atomique : résultat + pointsAwarded de ce match + recalcul du
+  // score agrégé de chaque joueur concerné.
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.result.upsert({
+        where: { matchId },
+        update: { homeScore, awayScore, status: "FINISHED" },
+        create: { matchId, homeScore, awayScore, status: "FINISHED" },
+      });
 
-  for (const pred of preds) {
-    const { points, exactScore, correctResult } = computePoints(
-      { homeScore: pred.homeScore, awayScore: pred.awayScore },
-      { homeScore, awayScore },
-      pred.joker
-    );
-    await prisma.prediction.update({
-      where: { id: pred.id },
-      data: { pointsAwarded: points },
-    });
-    await prisma.score.upsert({
-      where: { userId: pred.userId },
-      update: {
-        points: { increment: points },
-        exactScores: { increment: exactScore ? 1 : 0 },
-        correctResults: { increment: correctResult ? 1 : 0 },
-      },
-      create: {
-        userId: pred.userId,
-        points,
-        exactScores: exactScore ? 1 : 0,
-        correctResults: correctResult ? 1 : 0,
-      },
-    });
-    await checkAndAwardBadges(pred.userId);
-  }
+      for (const pred of preds) {
+        const { points } = computePoints(
+          { homeScore: pred.homeScore, awayScore: pred.awayScore },
+          { homeScore, awayScore },
+          pred.joker
+        );
+        if (pred.pointsAwarded !== points) {
+          await tx.prediction.update({
+            where: { id: pred.id },
+            data: { pointsAwarded: points },
+          });
+        }
+      }
+
+      // Recalcul complet du score de chaque joueur concerné, à partir de TOUS
+      // ses pronos sur des matchs terminés (source de vérité = les résultats).
+      const userIds = [...new Set(preds.map((p) => p.userId))];
+      for (const userId of userIds) {
+        const userPreds = await tx.prediction.findMany({
+          where: { userId, match: { result: { status: "FINISHED" } } },
+          include: { match: { include: { result: true } } },
+        });
+        let points = 0;
+        let exactScores = 0;
+        let correctResults = 0;
+        for (const up of userPreds) {
+          const r = up.match.result;
+          if (!r) continue;
+          const b = computePoints(
+            { homeScore: up.homeScore, awayScore: up.awayScore },
+            { homeScore: r.homeScore, awayScore: r.awayScore },
+            up.joker
+          );
+          points += b.points;
+          if (b.exactScore) exactScores++;
+          if (b.correctResult) correctResults++;
+        }
+        await tx.score.upsert({
+          where: { userId },
+          update: { points, exactScores, correctResults },
+          create: { userId, points, exactScores, correctResults },
+        });
+      }
+    },
+    { timeout: 20_000 }
+  );
+
+  // Badges : une seule passe par joueur concerné, après commit (idempotent).
+  const userIds = [...new Set(preds.map((p) => p.userId))];
+  await Promise.all(
+    userIds.map((userId) =>
+      checkAndAwardBadges(userId).catch((e) =>
+        console.error("[badges] ignoré:", e instanceof Error ? e.message : e)
+      )
+    )
+  );
 
   return { scored: preds.length };
 }

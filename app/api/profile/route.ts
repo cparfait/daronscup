@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reassignOwnedGroups } from "@/lib/groups";
 
 const schema = z.object({ name: z.string().trim().min(2).max(30) });
 
@@ -35,6 +36,9 @@ export async function DELETE() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Non connecté" }, { status: 401 });
   }
+  // Transmet la propriété de ses groupes avant la cascade (sinon le groupe
+  // resterait sans organisateur).
+  await reassignOwnedGroups(session.user.id).catch(() => {});
   // Cascade : pronos, score, messages, badges, abonnements… (schéma Prisma).
   await prisma.user.delete({ where: { id: session.user.id } });
   return NextResponse.json({ ok: true });

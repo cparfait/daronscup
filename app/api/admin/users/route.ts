@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reassignOwnedGroups } from "@/lib/groups";
 
 const schema = z.object({
   userId: z.string().min(1),
@@ -39,6 +40,8 @@ export async function POST(req: Request) {
 
   try {
     if (action === "delete") {
+      // Transmet la propriété de ses groupes avant la cascade.
+      await reassignOwnedGroups(userId).catch(() => {});
       // Cascade : prédictions, score, messages, badges, abonnements… (schéma).
       await prisma.user.delete({ where: { id: userId } });
       return NextResponse.json({ ok: true });
