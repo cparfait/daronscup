@@ -133,35 +133,41 @@ export default async function DashboardPage() {
       <HomeOnboarding />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
-        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
-          <Trophy className="mb-1 size-5 text-[var(--color-gold)]" />
-          <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
-            {stats?.points ?? 0}
-          </span>
-          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
-            Points
-          </span>
-        </Card>
+        <Link href="/leaderboard">
+          <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+            <Trophy className="mb-1 size-5 text-[var(--color-gold)]" />
+            <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+              {stats?.points ?? 0}
+            </span>
+            <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              Points
+            </span>
+          </Card>
+        </Link>
 
-        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
-          <Target className="mb-1 size-5 text-[var(--color-pitch-bright)]" />
-          <span className="text-gradient-pitch font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
-            {stats?.exactScores ?? 0}
-          </span>
-          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
-            Scores exacts
-          </span>
-        </Card>
+        <Link href="/leaderboard">
+          <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+            <Target className="mb-1 size-5 text-[var(--color-pitch-bright)]" />
+            <span className="text-gradient-pitch font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+              {stats?.exactScores ?? 0}
+            </span>
+            <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              Scores exacts
+            </span>
+          </Card>
+        </Link>
 
-        <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
-          <TrendingUp className="mb-1 size-5 text-[var(--color-gold)]" />
-          <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
-            {myRank ? `${myRank}${myRank === 1 ? "er" : "e"}` : "—"}
-          </span>
-          <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
-            Rang
-          </span>
-        </Card>
+        <Link href="/leaderboard">
+          <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
+            <TrendingUp className="mb-1 size-5 text-[var(--color-gold)]" />
+            <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">
+              {myRank ? `${myRank}${myRank === 1 ? "er" : "e"}` : "—"}
+            </span>
+            <span className="mt-1 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              Rang
+            </span>
+          </Card>
+        </Link>
       </div>
 
       {featuredMatch && (

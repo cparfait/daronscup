@@ -131,7 +131,7 @@ export default async function LeaderboardPage() {
                     </span>
                   )}
                   <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
-                    {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""}
+                    {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""} · {user.correctResults} bon{user.correctResults !== 1 ? "s" : ""}
                   </span>
                 </div>
               </div>

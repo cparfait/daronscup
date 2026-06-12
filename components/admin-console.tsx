@@ -11,6 +11,8 @@ import {
   Check,
   Loader2,
   Trash2,
+  Users,
+  Copy,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,23 +20,27 @@ import type {
   AdminUser,
   AdminMatchBrief,
   AdminMatchResult,
+  AdminGroup,
 } from "@/lib/data/admin";
 
 export function AdminConsole({
   users,
   matches,
   allMatches,
+  groups,
   currentUserId,
 }: {
   users: AdminUser[];
   matches: AdminMatchResult[];
   allMatches: AdminMatchBrief[];
+  groups: AdminGroup[];
   currentUserId: string;
 }) {
   return (
     <div className="grid gap-4">
       <SyncPanel />
       <InvitePanel />
+      <GroupsPanel groups={groups} />
       <ImportPredictionPanel users={users} matches={allMatches} />
       <ManualScorePanel matches={matches} />
       <RescorePanel />
@@ -42,6 +48,87 @@ export function AdminConsole({
       <CloseTournamentPanel />
       <ResetPanel />
     </div>
+  );
+}
+
+/* ─── Liens d'invitation de tous les groupes ─── */
+function GroupsPanel({ groups }: { groups: AdminGroup[] }) {
+  const { msg, flash } = useFeedback();
+
+  const copyLink = async (name: string, token: string) => {
+    const url = `${window.location.origin}/join/${token}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: name, url });
+        return;
+      } catch {
+        // fallback
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      flash(`✓ Lien de « ${name} » copié`, true);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.cssText = "position:fixed;opacity:0;left:-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        flash(`✓ Lien de « ${name} » copié`, true);
+      } catch {
+        flash("Copie ce lien : " + url, true);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Users className="size-4 text-[var(--color-pitch-bright)]" />
+          Groupes ({groups.length})
+        </CardTitle>
+        {groups.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--color-muted)]">Aucun groupe.</p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-2">
+            {groups.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center gap-2 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{g.name}</p>
+                  <p className="text-xs text-[var(--color-muted)]">
+                    {g.memberCount} membre{g.memberCount > 1 ? "s" : ""}
+                    {g.createdByName ? ` · ${g.createdByName}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyLink(g.name, g.token)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-cream)]"
+                >
+                  <Copy className="size-3" />
+                  Copier
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

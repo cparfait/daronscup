@@ -107,11 +107,31 @@ function GroupRow({
 
   const copyLink = async () => {
     const url = `${window.location.origin}/join/${group.token}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: group.name, url });
+        return;
+      } catch {
+        // user cancelled or unsupported — fallback to clipboard
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       flash("✓ Lien d'invitation copié", true);
     } catch {
-      flash(url, true);
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.cssText = "position:fixed;opacity:0;left:-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        flash("✓ Lien d'invitation copié", true);
+      } catch {
+        flash("Copie ce lien : " + url, true);
+      } finally {
+        document.body.removeChild(ta);
+      }
     }
   };
 

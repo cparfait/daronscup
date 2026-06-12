@@ -28,6 +28,24 @@ const BADGES = [
     emoji: "🎯",
     description: "10 scores exacts au total.",
   },
+  {
+    key: "premier_pas",
+    label: "Premier pas",
+    emoji: "👶",
+    description: "1er pronostic validé.",
+  },
+  {
+    key: "en_feu",
+    label: "En feu",
+    emoji: "🔥",
+    description: "5 bons résultats consécutifs (pts > 0).",
+  },
+  {
+    key: "assidu",
+    label: "Assidu",
+    emoji: "📅",
+    description: "Tous les matchs d'une journée pronostiqués.",
+  },
 ];
 
 async function main() {

@@ -10,6 +10,7 @@ import {
   getAdminUsers,
   getMatchesForResultEntry,
   getAllMatchesBrief,
+  getAdminGroups,
 } from "@/lib/data/admin";
 
 export const metadata = { title: "Admin · DaronsFC" };
@@ -21,11 +22,12 @@ export default async function AdminPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const [stats, users, matches, allMatches] = await Promise.all([
+  const [stats, users, matches, allMatches, groups] = await Promise.all([
     getAdminStats(),
     getAdminUsers(),
     getMatchesForResultEntry(),
     getAllMatchesBrief(),
+    getAdminGroups(),
   ]);
 
   const STATS = [
@@ -86,6 +88,7 @@ export default async function AdminPage() {
         users={users}
         matches={matches}
         allMatches={allMatches}
+        groups={groups}
         currentUserId={session.user.id}
       />
     </main>

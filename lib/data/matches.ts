@@ -79,6 +79,7 @@ export type LiveLeaderboardEntry = {
   /** points + livePoints. */
   total: number;
   exactScores: number;
+  correctResults: number;
   badges: string[];
   /** Évolution de rang vs match précédent (positif = monte), null si inconnu. */
   evolution: number | null;

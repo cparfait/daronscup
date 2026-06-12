@@ -91,6 +91,39 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   }
 }
 
+export type AdminGroup = {
+  id: string;
+  name: string;
+  token: string;
+  memberCount: number;
+  createdByName: string | null;
+};
+
+export async function getAdminGroups(): Promise<AdminGroup[]> {
+  try {
+    const groups = await prisma.group.findMany({
+      orderBy: { createdAt: "asc" },
+      include: {
+        _count: { select: { members: true } },
+        members: {
+          where: { role: "OWNER" },
+          select: { user: { select: { name: true } } },
+          take: 1,
+        },
+      },
+    });
+    return groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      token: g.token,
+      memberCount: g._count.members,
+      createdByName: g.members[0]?.user.name ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export type AdminMatchResult = {
   id: string;
   homeTeam: string;

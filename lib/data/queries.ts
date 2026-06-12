@@ -278,6 +278,7 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
         livePoints: e.livePoints,
         total: e.total,
         exactScores: e.exactScores,
+        correctResults: e.correctResults,
         badges: e.badges,
       }));
 
