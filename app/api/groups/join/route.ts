@@ -27,12 +27,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Ce groupe n'existe pas (lien invalide)." }, { status: 404 });
     }
 
-    // Adhésion idempotente.
+    const existing = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
+    });
+
     await prisma.groupMember.upsert({
       where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
       create: { groupId: group.id, userId: session.user.id, role: "MEMBER" },
       update: {},
     });
+
+    if (!existing) {
+      await prisma.message.create({
+        data: {
+          userId: session.user.id,
+          groupId: group.id,
+          content: `a rejoint le groupe 🎉`,
+        },
+      });
+    }
 
     const jar = await cookies();
     jar.set(GROUP_COOKIE, group.id, {
