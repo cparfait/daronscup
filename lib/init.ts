@@ -24,15 +24,18 @@ async function bootstrapAdmin(): Promise<void> {
   const password = process.env.ADMIN_PASSWORD;
   if (!email || !password) return;
 
+  const passwordHash = await bcrypt.hash(password, 10);
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.role !== "ADMIN") {
-      await prisma.user.update({ where: { email }, data: { role: "ADMIN" } });
-    }
+    // Auto-réparation : garantit le rôle ADMIN + mot de passe = ADMIN_PASSWORD.
+    await prisma.user.update({
+      where: { email },
+      data: { role: "ADMIN", passwordHash, banned: false },
+    });
+    console.log(`[init] compte admin vérifié (${email})`);
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.create({
     data: {
       email,
