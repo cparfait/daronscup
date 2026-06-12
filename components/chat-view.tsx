@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Smile, Pin, Trash2 } from "lucide-react";
+import { Send, SmilePlus, Pin, PinOff, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+
+const REACTION_EMOJIS = ["👍", "😂", "🔥", "😮", "⚽", "💀"];
+
+type Reaction = { emoji: string; count: number; mine: boolean };
 
 type ChatMsg = {
   id: string;
@@ -12,6 +16,7 @@ type ChatMsg = {
   text: string;
   pinned: boolean;
   timestamp: string; // ISO
+  reactions: Reaction[];
 };
 
 type Props = {
@@ -36,6 +41,7 @@ export function ChatView({ currentUser, initial }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>(initial);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastRef = useRef<string>(
     initial.length > 0
@@ -86,6 +92,52 @@ export function ChatView({ currentUser, initial }: Props) {
     }
   }
 
+  async function handlePin(id: string, pinned: boolean) {
+    setMessages((m) =>
+      m.map((msg) => (msg.id === id ? { ...msg, pinned } : msg))
+    );
+    try {
+      await fetch("/api/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, pinned }),
+      });
+    } catch {}
+  }
+
+  async function handleReact(id: string, emoji: string) {
+    setPickerFor(null);
+    // Toggle optimiste de la réaction.
+    setMessages((msgs) =>
+      msgs.map((m) => {
+        if (m.id !== id) return m;
+        const existing = m.reactions.find((r) => r.emoji === emoji);
+        let reactions: Reaction[];
+        if (existing?.mine) {
+          reactions = m.reactions
+            .map((r) =>
+              r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r
+            )
+            .filter((r) => r.count > 0);
+        } else if (existing) {
+          reactions = m.reactions.map((r) =>
+            r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r
+          );
+        } else {
+          reactions = [...m.reactions, { emoji, count: 1, mine: true }];
+        }
+        return { ...m, reactions };
+      })
+    );
+    try {
+      await fetch("/api/messages/react", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: id, emoji }),
+      });
+    } catch {}
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
@@ -130,25 +182,53 @@ export function ChatView({ currentUser, initial }: Props) {
         {messages.map((msg, i) => {
           const isOwn = msg.userId === currentUser.id;
           const canDelete = isOwn || currentUser.isAdmin;
-          return (
-            <div
-              key={msg.id}
-              className={`group flex items-center gap-1.5 ${isOwn ? "justify-end" : "justify-start"}`}
-            >
-              {/* Bouton supprimer (côté gauche pour ses propres messages) */}
-              {canDelete && isOwn && (
+
+          const actions = (
+            <div className="flex shrink-0 flex-col items-center gap-1 self-center opacity-0 transition-opacity group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={() => setPickerFor(pickerFor === msg.id ? null : msg.id)}
+                title="Réagir"
+                className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-[var(--color-cream)]"
+              >
+                <SmilePlus className="size-3.5" />
+              </button>
+              {currentUser.isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handlePin(msg.id, !msg.pinned)}
+                  title={msg.pinned ? "Désépingler" : "Épingler"}
+                  className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-[var(--color-gold)]"
+                >
+                  {msg.pinned ? (
+                    <PinOff className="size-3.5" />
+                  ) : (
+                    <Pin className="size-3.5" />
+                  )}
+                </button>
+              )}
+              {canDelete && (
                 <button
                   type="button"
                   onClick={() => handleDelete(msg.id)}
                   title="Supprimer"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                  className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-red-400"
                 >
                   <Trash2 className="size-3.5" />
                 </button>
               )}
+            </div>
+          );
+
+          return (
+            <div
+              key={msg.id}
+              className={`group flex items-start gap-1.5 ${isOwn ? "justify-end" : "justify-start"}`}
+            >
+              {isOwn && actions}
 
               <Card
-                className={`relative max-w-[85%] overflow-hidden p-3 transition-all duration-200 ${
+                className={`relative max-w-[85%] overflow-visible p-3 transition-all duration-200 ${
                   msg.pinned
                     ? "border-[var(--color-gold)]/40 bg-[var(--color-gold)]/5"
                     : isOwn
@@ -177,19 +257,48 @@ export function ChatView({ currentUser, initial }: Props) {
                 </div>
 
                 <p className="text-sm leading-relaxed">{msg.text}</p>
+
+                {/* Réactions */}
+                {msg.reactions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {msg.reactions.map((r) => (
+                      <button
+                        key={r.emoji}
+                        type="button"
+                        onClick={() => handleReact(msg.id, r.emoji)}
+                        className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs transition-colors ${
+                          r.mine
+                            ? "bg-[var(--color-pitch)]/20 text-[var(--color-pitch-bright)]"
+                            : "bg-[var(--color-surface-2)] text-[var(--color-muted)]"
+                        }`}
+                      >
+                        <span>{r.emoji}</span>
+                        <span className="font-[family-name:var(--font-mono)]">
+                          {r.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Sélecteur d'emoji */}
+                {pickerFor === msg.id && (
+                  <div className="mt-2 flex flex-wrap gap-1 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-1.5">
+                    {REACTION_EMOJIS.map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => handleReact(msg.id, e)}
+                        className="flex size-7 items-center justify-center rounded-lg text-base transition-transform hover:scale-125"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </Card>
 
-              {/* Bouton supprimer admin (messages des autres, côté droit) */}
-              {canDelete && !isOwn && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(msg.id)}
-                  title="Supprimer (admin)"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-muted)] opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
+              {!isOwn && actions}
             </div>
           );
         })}
@@ -198,14 +307,6 @@ export function ChatView({ currentUser, initial }: Props) {
 
       {/* Input */}
       <div className="glass mt-3 flex items-center gap-2 rounded-2xl border border-[var(--color-border-subtle)] px-3 py-2">
-        <button
-          type="button"
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-cream)]"
-          title="Emoji"
-        >
-          <Smile className="size-5" />
-        </button>
-
         <input
           type="text"
           value={input}

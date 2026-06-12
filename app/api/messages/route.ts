@@ -3,13 +3,33 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendPushToAllExcept } from "@/lib/push";
 
+/** Agrège les réactions d'un message en { emoji, count, mine }. */
+function aggregateReactions(
+  reactions: { emoji: string; userId: string }[],
+  meId?: string
+) {
+  const map = new Map<string, { emoji: string; count: number; mine: boolean }>();
+  for (const r of reactions) {
+    const e = map.get(r.emoji) ?? { emoji: r.emoji, count: 0, mine: false };
+    e.count++;
+    if (r.userId === meId) e.mine = true;
+    map.set(r.emoji, e);
+  }
+  return [...map.values()];
+}
+
 export async function GET(req: Request) {
   try {
+    const session = await auth();
+    const meId = session?.user?.id;
     const { searchParams } = new URL(req.url);
     const since = searchParams.get("since");
     const messages = await prisma.message.findMany({
       where: since ? { createdAt: { gt: new Date(since) } } : {},
-      include: { user: { select: { id: true, name: true } } },
+      include: {
+        user: { select: { id: true, name: true } },
+        reactions: { select: { emoji: true, userId: true } },
+      },
       orderBy: { createdAt: "asc" },
       take: 100,
     });
@@ -21,11 +41,26 @@ export async function GET(req: Request) {
         text: m.content,
         pinned: m.pinned,
         timestamp: m.createdAt.toISOString(),
+        reactions: aggregateReactions(m.reactions, meId),
       }))
     );
   } catch {
     return NextResponse.json([]);
   }
+}
+
+/** Épingle / désépingle un message (admin uniquement). */
+export async function PATCH(req: Request) {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    return NextResponse.json({ error: "Réservé aux admins" }, { status: 403 });
+  }
+  const { id, pinned } = await req.json().catch(() => ({}));
+  if (typeof id !== "string" || typeof pinned !== "boolean") {
+    return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
+  }
+  await prisma.message.update({ where: { id }, data: { pinned } });
+  return NextResponse.json({ ok: true });
 }
 
 /** Suppression d'un message — par son auteur ou par un admin. */
@@ -80,6 +115,7 @@ export async function POST(req: Request) {
       text: msg.content,
       pinned: msg.pinned,
       timestamp: msg.createdAt.toISOString(),
+      reactions: [],
     });
   } catch {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

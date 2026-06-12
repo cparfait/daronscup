@@ -12,6 +12,7 @@ type ChatMsg = {
   text: string;
   pinned: boolean;
   timestamp: string;
+  reactions: { emoji: string; count: number; mine: boolean }[];
 };
 
 export default async function ChatPage() {
@@ -25,18 +26,31 @@ export default async function ChatPage() {
   let initial: ChatMsg[] = [];
   try {
     const rows = await prisma.message.findMany({
-      include: { user: { select: { id: true, name: true } } },
+      include: {
+        user: { select: { id: true, name: true } },
+        reactions: { select: { emoji: true, userId: true } },
+      },
       orderBy: { createdAt: "asc" },
       take: 50,
     });
-    initial = rows.map((m) => ({
-      id: m.id,
-      userId: m.userId,
-      user: m.user.name ?? "Daron",
-      text: m.content,
-      pinned: m.pinned,
-      timestamp: m.createdAt.toISOString(),
-    }));
+    initial = rows.map((m) => {
+      const map = new Map<string, { emoji: string; count: number; mine: boolean }>();
+      for (const r of m.reactions) {
+        const e = map.get(r.emoji) ?? { emoji: r.emoji, count: 0, mine: false };
+        e.count++;
+        if (r.userId === currentUser.id) e.mine = true;
+        map.set(r.emoji, e);
+      }
+      return {
+        id: m.id,
+        userId: m.userId,
+        user: m.user.name ?? "Daron",
+        text: m.content,
+        pinned: m.pinned,
+        timestamp: m.createdAt.toISOString(),
+        reactions: [...map.values()],
+      };
+    });
   } catch {}
 
   return <ChatView currentUser={currentUser} initial={initial} />;
