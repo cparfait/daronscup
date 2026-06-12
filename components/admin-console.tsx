@@ -39,7 +39,53 @@ export function AdminConsole({
       <ImportPredictionPanel users={users} matches={allMatches} />
       <ManualScorePanel matches={matches} />
       <UsersPanel users={users} currentUserId={currentUserId} />
+      <CloseTournamentPanel />
     </div>
+  );
+}
+
+/* ─── Clôture du tournoi (badge daronissime) ─── */
+function CloseTournamentPanel() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+
+  const close = () =>
+    start(async () => {
+      if (!confirm("Décerner le titre de Daronissime 👑 au leader du classement ?"))
+        return;
+      try {
+        const res = await fetch("/api/admin/close-tournament", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(`👑 Daronissime décerné à ${data.champion} !`, true);
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">👑 Clôturer le tournoi</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Décerne le badge Daronissime au 1ᵉʳ du classement. À faire en fin de
+          Coupe du Monde.
+        </p>
+        <Button variant="gold" size="sm" onClick={close} disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : <Check />}
+          Sacrer le Daronissime
+        </Button>
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
