@@ -465,13 +465,13 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
     prisma.prediction.findMany({
       where: { userId, pointsAwarded: { not: null } },
       include: {
-        match: { select: { kickoffAt: true }, include: { result: true } },
+        match: { include: { result: true } },
       },
       orderBy: { match: { kickoffAt: "asc" } },
     }),
     prisma.prediction.findMany({
       where: { userId },
-      include: { match: { select: { matchday: true } } },
+      include: { match: { select: { matchday: true, kickoffAt: true } } },
     }),
   ]);
 
