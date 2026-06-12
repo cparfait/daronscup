@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { SignOutButton } from "@/components/sign-out-button";
 import { EditableName } from "@/components/editable-name";
 import { PushToggle } from "@/components/push-toggle";
+import { DeleteAccountButton } from "@/components/delete-account-button";
 import { Flag } from "@/components/flag";
 import {
   getBadges,
@@ -255,6 +256,10 @@ export default async function ProfilePage() {
       )}
 
       <SignOutButton />
+
+      <div className="mt-2">
+        <DeleteAccountButton />
+      </div>
     </>
   );
 }

@@ -10,6 +10,7 @@ import {
   Undo2,
   Check,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -555,6 +556,21 @@ function UsersPanel({
                           <ShieldCheck className="size-4" />
                         </button>
                       )}
+                      {/* Supprimer */}
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Supprimer définitivement ${u.name} ? (pronos, points, messages… seront effacés)`
+                            )
+                          )
+                            act(u.id, "delete");
+                        }}
+                        title="Supprimer le compte"
+                        className="flex size-8 items-center justify-center rounded-lg text-red-400 hover:bg-[var(--color-surface-3)]"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
                     </div>
                   )
                 )}

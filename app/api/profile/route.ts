@@ -28,3 +28,14 @@ export async function PATCH(req: Request) {
   });
   return NextResponse.json({ ok: true, name: parsed.data.name });
 }
+
+/** Suppression définitive du compte de l'utilisateur connecté. */
+export async function DELETE() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Non connecté" }, { status: 401 });
+  }
+  // Cascade : pronos, score, messages, badges, abonnements… (schéma Prisma).
+  await prisma.user.delete({ where: { id: session.user.id } });
+  return NextResponse.json({ ok: true });
+}
