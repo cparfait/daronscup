@@ -47,5 +47,30 @@ export async function POST(req: Request) {
     });
   }
 
+  // Notification « tu t'es fait doubler » : joueurs dont le rang a baissé
+  // depuis le dernier match (previousRank figé avant l'attribution des points).
+  if (pending.length > 0) {
+    const scores = await prisma.score.findMany({
+      where: { user: { banned: false } },
+      orderBy: [
+        { points: "desc" },
+        { exactScores: "desc" },
+        { correctResults: "desc" },
+      ],
+      select: { userId: true, previousRank: true },
+    });
+    const dropped = scores
+      .map((s, i) => ({ userId: s.userId, rank: i + 1, prev: s.previousRank }))
+      .filter((s) => s.prev != null && s.rank > s.prev)
+      .map((s) => s.userId);
+    if (dropped.length > 0) {
+      await sendPushToUsers(dropped, {
+        title: "Tu t'es fait doubler ! 😱",
+        body: "Le classement a bougé — va voir où tu en es.",
+        url: "/leaderboard",
+      });
+    }
+  }
+
   return NextResponse.json({ ok: true, processed: pending.length, sent });
 }

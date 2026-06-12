@@ -6,10 +6,12 @@ import { prisma } from "@/lib/prisma";
 
 export type AdminStats = {
   users: number;
+  activePlayers: number;
   predictions: number;
   messages: number;
   finishedMatches: number;
   totalMatches: number;
+  topScorer: { name: string; points: number } | null;
 };
 
 export type AdminUser = {
@@ -26,21 +28,40 @@ export type AdminUser = {
 export async function getAdminStats(): Promise<AdminStats> {
   const empty: AdminStats = {
     users: 0,
+    activePlayers: 0,
     predictions: 0,
     messages: 0,
     finishedMatches: 0,
     totalMatches: 0,
+    topScorer: null,
   };
   try {
-    const [users, predictions, messages, finishedMatches, totalMatches] =
+    const [users, activePlayers, predictions, messages, finishedMatches, totalMatches, top] =
       await Promise.all([
         prisma.user.count(),
+        prisma.user.count({ where: { predictions: { some: {} } } }),
         prisma.prediction.count(),
         prisma.message.count(),
         prisma.result.count({ where: { status: "FINISHED" } }),
         prisma.match.count(),
+        prisma.score.findFirst({
+          where: { user: { banned: false } },
+          orderBy: [{ points: "desc" }, { exactScores: "desc" }],
+          include: { user: { select: { name: true } } },
+        }),
       ]);
-    return { users, predictions, messages, finishedMatches, totalMatches };
+    return {
+      users,
+      activePlayers,
+      predictions,
+      messages,
+      finishedMatches,
+      totalMatches,
+      topScorer:
+        top && top.points > 0
+          ? { name: top.user.name ?? "Anonyme", points: top.points }
+          : null,
+    };
   } catch {
     return empty;
   }

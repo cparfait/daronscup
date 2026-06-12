@@ -29,7 +29,7 @@ export default async function AdminPage() {
   ]);
 
   const STATS = [
-    { label: "Joueurs", value: stats.users, emoji: "👥" },
+    { label: "Joueurs actifs", value: `${stats.activePlayers}/${stats.users}`, emoji: "👥" },
     { label: "Pronostics", value: stats.predictions, emoji: "🎯" },
     { label: "Messages", value: stats.messages, emoji: "💬" },
     {
@@ -64,6 +64,23 @@ export default async function AdminPage() {
           </Card>
         ))}
       </div>
+
+      {stats.topScorer && (
+        <Card className="mb-4 flex items-center gap-3 border-[var(--color-gold)]/30 bg-[var(--color-gold)]/[0.05] p-4">
+          <span className="text-2xl">👑</span>
+          <div className="flex-1">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+              En tête du classement
+            </p>
+            <p className="font-[family-name:var(--font-display)] font-bold">
+              {stats.topScorer.name}
+            </p>
+          </div>
+          <span className="font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--color-gold)]">
+            {stats.topScorer.points} pts
+          </span>
+        </Card>
+      )}
 
       <AdminConsole
         users={users}
