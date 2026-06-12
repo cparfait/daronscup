@@ -108,7 +108,8 @@ export default async function RegisterPage() {
 
         {/* Terms hint */}
         <p className="mt-4 text-center text-xs text-[var(--color-muted)]/60">
-          En creant un compte, tu acceptes les regles de la Darons League.
+          En creant un compte, tu acceptes les regles de la Darons League FC
+          (bon ok… j&apos;avoue y&apos;en a pas).
         </p>
       </div>
     </main>
