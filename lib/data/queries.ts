@@ -364,21 +364,29 @@ export async function getPredictionComparison(
       }),
     ]);
 
+    // Tous les matchs déjà commencés (les pronos ne sont visibles qu'après le
+    // coup d'envoi) — pour afficher la grille complète et repérer les oublis.
     const now = new Date();
-    const targetPreds = await prisma.prediction.findMany({
-      where: { userId: targetId, match: { kickoffAt: { lte: now } } },
-      include: { match: { include: { result: true } } },
-      orderBy: { match: { kickoffAt: "desc" } },
+    const matches = await prisma.match.findMany({
+      where: { kickoffAt: { lte: now } },
+      include: { result: true },
+      orderBy: { kickoffAt: "desc" },
     });
 
-    const matchIds = targetPreds.map((p) => p.matchId);
-    const minePreds = await prisma.prediction.findMany({
-      where: { userId: viewerId, matchId: { in: matchIds } },
-    });
+    const matchIds = matches.map((m) => m.id);
+    const [targetPreds, minePreds] = await Promise.all([
+      prisma.prediction.findMany({
+        where: { userId: targetId, matchId: { in: matchIds } },
+      }),
+      prisma.prediction.findMany({
+        where: { userId: viewerId, matchId: { in: matchIds } },
+      }),
+    ]);
+    const targetByMatch = new Map(targetPreds.map((p) => [p.matchId, p]));
     const mineByMatch = new Map(minePreds.map((p) => [p.matchId, p]));
 
-    const rows: ComparisonRow[] = targetPreds.map((tp) => {
-      const r = tp.match.result;
+    const rows: ComparisonRow[] = matches.map((m) => {
+      const r = m.result;
       const scored = r && (r.status === "FINISHED" || r.status === "LIVE");
       const pts = (p: { homeScore: number; awayScore: number; joker: boolean }) =>
         scored
@@ -388,15 +396,18 @@ export async function getPredictionComparison(
               p.joker
             ).points
           : null;
-      const mine = mineByMatch.get(tp.matchId);
+      const tp = targetByMatch.get(m.id);
+      const mine = mineByMatch.get(m.id);
       return {
-        match: toUiMatch(tp.match),
-        theirs: {
-          homeScore: tp.homeScore,
-          awayScore: tp.awayScore,
-          joker: tp.joker,
-          points: pts(tp),
-        },
+        match: toUiMatch(m),
+        theirs: tp
+          ? {
+              homeScore: tp.homeScore,
+              awayScore: tp.awayScore,
+              joker: tp.joker,
+              points: pts(tp),
+            }
+          : null,
         mine: mine
           ? {
               homeScore: mine.homeScore,

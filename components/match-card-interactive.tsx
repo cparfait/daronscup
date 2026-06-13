@@ -310,10 +310,13 @@ export function MatchCardInteractive({
             <button
               type="button"
               onClick={() => setShowComment(true)}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] transition-colors hover:text-[var(--color-cream)]"
+              className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-xs text-[var(--color-muted)] transition-colors hover:border-[var(--color-pitch)] hover:text-[var(--color-cream)]"
             >
-              <MessageSquarePlus className="size-3.5" />
-              Ajouter un mot
+              <MessageSquarePlus className="size-4 shrink-0 text-[var(--color-pitch-bright)]" />
+              <span className="font-medium">Laisser un commentaire</span>
+              <span className="ml-auto text-[10px] text-[var(--color-muted)]">
+                visible par le groupe
+              </span>
             </button>
           )}
 

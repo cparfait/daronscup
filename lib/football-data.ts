@@ -460,7 +460,7 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
     prisma.score.findUnique({ where: { userId } }),
     prisma.userBadge.findMany({
       where: { userId },
-      include: { badge: { select: { key: true } } },
+      include: { badge: { select: { key: true, id: true } } },
     }),
     prisma.prediction.findMany({
       where: { userId, pointsAwarded: { not: null } },
@@ -475,11 +475,29 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
     }),
   ]);
 
-  const hasBadge = new Set(existingBadges.map((b) => b.badge.key));
   const points = score?.points ?? 0;
-  const toAward: string[] = [];
+
+  // Badges calculés (et donc réconciliés) par cette fonction. Les badges hors
+  // de cette liste — ex. « daronissime », attribué à la clôture du tournoi — ne
+  // sont jamais retirés ici.
+  const MANAGED_KEYS = new Set([
+    "premier_pas",
+    "sniper",
+    "demi_centurion",
+    "centurion",
+    "perfectionniste",
+    "nostradamus",
+    "en_feu",
+    "meme_pas_mal",
+    "assidu",
+  ]);
+
+  // Ensemble des badges MÉRITÉS d'après les données actuelles. On le recalcule
+  // intégralement à chaque passe pour qu'un recalcul (correction de résultat,
+  // joker ajouté puis retiré…) retire les badges qui ne sont plus justifiés.
+  const shouldHave = new Set<string>();
   const want = (key: string, cond: boolean) => {
-    if (cond && !hasBadge.has(key)) toAward.push(key);
+    if (cond) shouldHave.add(key);
   };
 
   const isExact = (p: (typeof scoredPreds)[number]) =>
@@ -497,24 +515,24 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
   want("perfectionniste", scoredPreds.some((p) => p.joker && isExact(p)));
 
   // ── nostradamus : 3 scores exacts consécutifs ──
-  if (!hasBadge.has("nostradamus")) {
+  {
     let streak = 0;
     for (const p of scoredPreds) {
       streak = isExact(p) ? streak + 1 : 0;
       if (streak >= 3) {
-        toAward.push("nostradamus");
+        shouldHave.add("nostradamus");
         break;
       }
     }
   }
 
   // ── en_feu : 5 bons résultats consécutifs (points > 0) ──
-  if (!hasBadge.has("en_feu")) {
+  {
     let streak = 0;
     for (const p of scoredPreds) {
       streak = (p.pointsAwarded ?? 0) > 0 ? streak + 1 : 0;
       if (streak >= 5) {
-        toAward.push("en_feu");
+        shouldHave.add("en_feu");
         break;
       }
     }
@@ -531,31 +549,31 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
   }
 
   // ── meme_pas_mal : 0 pt sur une journée complète (≥2 pronos, tous terminés) ──
-  if (!hasBadge.has("meme_pas_mal")) {
-    for (const dayPreds of byDay.values()) {
-      if (
-        dayPreds.length >= 2 &&
-        dayPreds.every((p) => p.pointsAwarded !== null) &&
-        dayPreds.every((p) => p.pointsAwarded === 0)
-      ) {
-        toAward.push("meme_pas_mal");
-        break;
-      }
+  for (const dayPreds of byDay.values()) {
+    if (
+      dayPreds.length >= 2 &&
+      dayPreds.every((p) => p.pointsAwarded !== null) &&
+      dayPreds.every((p) => p.pointsAwarded === 0)
+    ) {
+      shouldHave.add("meme_pas_mal");
+      break;
     }
   }
 
   // ── assidu : tous les matchs d'une journée pronostiqués ──
-  if (!hasBadge.has("assidu")) {
-    for (const [day, dayPreds] of byDay.entries()) {
-      const total = await prisma.match.count({ where: { matchday: day } });
-      if (total >= 2 && dayPreds.length >= total) {
-        toAward.push("assidu");
-        break;
-      }
+  for (const [day, dayPreds] of byDay.entries()) {
+    const total = await prisma.match.count({ where: { matchday: day } });
+    if (total >= 2 && dayPreds.length >= total) {
+      shouldHave.add("assidu");
+      break;
     }
   }
 
-  // ── Award ──
+  // ── Réconciliation : attribuer les manquants, retirer les non-mérités ──
+  const hasBadge = new Set(existingBadges.map((b) => b.badge.key));
+
+  // Attribution des badges mérités mais pas encore détenus.
+  const toAward = [...shouldHave].filter((key) => !hasBadge.has(key));
   for (const key of toAward) {
     const badge = await prisma.badge.findUnique({ where: { key } });
     if (!badge) continue;
@@ -565,5 +583,16 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
       create: { userId, badgeId: badge.id },
     });
     console.log(`[badges] 🎖️ "${key}" attribué à ${userId}`);
+  }
+
+  // Retrait des badges gérés ici qui ne sont plus mérités.
+  const toRevoke = existingBadges.filter(
+    (b) => MANAGED_KEYS.has(b.badge.key) && !shouldHave.has(b.badge.key)
+  );
+  for (const b of toRevoke) {
+    await prisma.userBadge.delete({
+      where: { userId_badgeId: { userId, badgeId: b.badge.id } },
+    });
+    console.log(`[badges] ❌ "${b.badge.key}" retiré à ${userId}`);
   }
 }

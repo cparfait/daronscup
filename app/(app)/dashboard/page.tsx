@@ -133,7 +133,7 @@ export default async function DashboardPage() {
       <HomeOnboarding />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
-        <Link href="/leaderboard">
+        <Link href="/profile/scoring">
           <Card className="glass card-hover flex flex-col items-center justify-center py-5 px-3 text-center">
             <Trophy className="mb-1 size-5 text-[var(--color-gold)]" />
             <span className="text-gradient-gold font-[family-name:var(--font-display)] text-2xl font-bold leading-tight">

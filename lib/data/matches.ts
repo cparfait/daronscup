@@ -121,7 +121,8 @@ export type UserPrediction = {
 /** Ligne de comparaison de pronos entre le viewer et un autre joueur. */
 export type ComparisonRow = {
   match: Match;
-  theirs: { homeScore: number; awayScore: number; joker: boolean; points: number | null };
+  /** null = le joueur a oublié de pronostiquer ce match. */
+  theirs: { homeScore: number; awayScore: number; joker: boolean; points: number | null } | null;
   mine: { homeScore: number; awayScore: number; joker: boolean; points: number | null } | null;
 };
 

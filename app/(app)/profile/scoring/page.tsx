@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Flag } from "@/components/flag";
+import { auth } from "@/lib/auth";
+import { getUserPredictions, getUserStats } from "@/lib/data/queries";
+import { computePoints } from "@/lib/scoring";
 
 export const metadata = { title: "Barème · DaronsFC" };
+export const dynamic = "force-dynamic";
 
 const RULES = [
   {
@@ -39,7 +44,31 @@ const RULES = [
   },
 ];
 
-export default function ScoringPage() {
+export default async function ScoringPage() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  // Pronostics terminés ayant rapporté des points, du plus rentable au plus
+  // récent — pour montrer concrètement d'où viennent les points du joueur.
+  const [predictions, stats] = userId
+    ? await Promise.all([getUserPredictions(userId, 200), getUserStats(userId)])
+    : [[], null];
+  const scored = predictions
+    .map((pred) => {
+      if (!pred.match.result) return null;
+      const { points } = computePoints(
+        { homeScore: pred.homeScore, awayScore: pred.awayScore },
+        pred.match.result,
+        pred.joker
+      );
+      return { pred, points };
+    })
+    .filter((x): x is { pred: (typeof predictions)[number]; points: number } => x !== null && x.points > 0)
+    .sort((a, b) => b.points - a.points);
+
+  // Total autoritatif (table Score) = le chiffre cliqué sur le dashboard.
+  const totalPoints = stats?.points ?? 0;
+
   return (
     <>
       <Link
@@ -56,6 +85,80 @@ export default function ScoringPage() {
       <p className="mb-6 text-sm text-[var(--color-muted)]">
         Le système de points et les jokers, en détail.
       </p>
+
+      {/* ── Mes points match par match ── */}
+      <h2 className="mb-3 flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-bold">
+        <span className="text-base">📊</span>
+        Mes points
+        {scored.length > 0 && (
+          <span className="ml-auto font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-gold)]">
+            {totalPoints} pts
+          </span>
+        )}
+      </h2>
+
+      <div className="mb-6 flex flex-col gap-2">
+        {scored.length === 0 ? (
+          <Card className="glass p-6 text-center">
+            <p className="text-sm text-[var(--color-muted)]">
+              Aucun match ne t&apos;a encore rapporté de points. Place tes pronos
+              et reviens après les matchs ! ⚽
+            </p>
+          </Card>
+        ) : (
+          scored.map(({ pred, points }) => {
+            const match = pred.match;
+            const result = match.result!;
+            const isExact =
+              pred.homeScore === result.homeScore &&
+              pred.awayScore === result.awayScore;
+            return (
+              <Card
+                key={pred.matchId}
+                className="glass flex items-center gap-3 p-3"
+              >
+                {/* Équipes + drapeaux */}
+                <div className="flex flex-1 items-center gap-2 min-w-0">
+                  <Flag code={match.homeFlag} className="h-4 w-6" />
+                  <span className="truncate text-sm font-medium">
+                    {match.homeTeam}
+                  </span>
+                  <span className="shrink-0 font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
+                    {result.homeScore}-{result.awayScore}
+                  </span>
+                  <span className="truncate text-sm font-medium">
+                    {match.awayTeam}
+                  </span>
+                  <Flag code={match.awayFlag} className="h-4 w-6" />
+                </div>
+
+                {/* Ton prono */}
+                <div className="flex shrink-0 items-center gap-1">
+                  <span
+                    className={`font-[family-name:var(--font-display)] text-sm font-bold ${
+                      isExact
+                        ? "text-[var(--color-pitch-bright)]"
+                        : "text-[var(--color-cream)]"
+                    }`}
+                  >
+                    {pred.homeScore}-{pred.awayScore}
+                  </span>
+                  {pred.joker && (
+                    <span className="text-sm" title="Joker activé">
+                      🃏
+                    </span>
+                  )}
+                </div>
+
+                {/* Points gagnés */}
+                <span className="shrink-0 rounded-full bg-[var(--color-gold)]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">
+                  +{points} pts
+                </span>
+              </Card>
+            );
+          })
+        )}
+      </div>
 
       {/* ── Barème ── */}
       <h2 className="mb-3 flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-bold">
