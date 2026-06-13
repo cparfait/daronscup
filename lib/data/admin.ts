@@ -91,12 +91,27 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   }
 }
 
+export type AdminGroupMember = {
+  id: string;
+  name: string;
+  role: string;
+};
+
+export type AdminGroupMessage = {
+  id: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+};
+
 export type AdminGroup = {
   id: string;
   name: string;
   token: string;
   memberCount: number;
   createdByName: string | null;
+  members: AdminGroupMember[];
+  recentMessages: AdminGroupMessage[];
 };
 
 export async function getAdminGroups(): Promise<AdminGroup[]> {
@@ -106,21 +121,79 @@ export async function getAdminGroups(): Promise<AdminGroup[]> {
       include: {
         _count: { select: { members: true } },
         members: {
-          where: { role: "OWNER" },
-          select: { user: { select: { name: true } } },
-          take: 1,
+          select: {
+            userId: true,
+            role: true,
+            user: { select: { name: true } },
+          },
+          orderBy: { joinedAt: "asc" },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          include: { user: { select: { name: true } } },
         },
       },
     });
+    const owners = new Map<string, string | null>();
+    for (const g of groups) {
+      const owner = g.members.find((m) => m.role === "OWNER");
+      owners.set(g.id, owner?.user.name ?? null);
+    }
     return groups.map((g) => ({
       id: g.id,
       name: g.name,
       token: g.token,
       memberCount: g._count.members,
-      createdByName: g.members[0]?.user.name ?? null,
+      createdByName: owners.get(g.id) ?? null,
+      members: g.members.map((m) => ({
+        id: m.userId,
+        name: m.user.name ?? "Anonyme",
+        role: m.role,
+      })),
+      recentMessages: g.messages
+        .slice()
+        .reverse()
+        .map((m) => ({
+          id: m.id,
+          userName: m.user.name ?? "Anonyme",
+          content: m.content,
+          createdAt: m.createdAt.toISOString(),
+        })),
     }));
   } catch {
     return [];
+  }
+}
+
+export type AdminPredictionEntry = {
+  userId: string;
+  matchId: string;
+  homeScore: number;
+  awayScore: number;
+  joker: boolean;
+};
+
+export type AdminPredictionMap = Record<string, AdminPredictionEntry>;
+
+export async function getAdminPredictions(): Promise<AdminPredictionMap> {
+  try {
+    const preds = await prisma.prediction.findMany({
+      select: { userId: true, matchId: true, homeScore: true, awayScore: true, joker: true },
+    });
+    const map: AdminPredictionMap = {};
+    for (const p of preds) {
+      map[`${p.userId}|${p.matchId}`] = {
+        userId: p.userId,
+        matchId: p.matchId,
+        homeScore: p.homeScore,
+        awayScore: p.awayScore,
+        joker: p.joker,
+      };
+    }
+    return map;
+  } catch {
+    return {};
   }
 }
 

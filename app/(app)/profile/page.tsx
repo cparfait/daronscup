@@ -27,7 +27,9 @@ import {
   Lock,
   Shield,
   TrendingUp,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
 
 export const metadata = { title: "Profil · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -56,8 +58,7 @@ export default async function ProfilePage() {
   const userBadges = stats?.badges ?? [];
 
   const STATS = [
-    { icon: Trophy, label: "Points", value: stats?.points ?? 0, emoji: "🏆" },
-    { icon: Target, label: "Scores exacts", value: stats?.exactScores ?? 0, emoji: "🎯" },
+    { icon: Trophy, label: "Scores exacts", value: stats?.exactScores ?? 0, emoji: "🎯" },
     { icon: CheckCircle, label: "Bons résultats", value: stats?.correctResults ?? 0, emoji: "✅" },
     { icon: Target, label: "Jokers utilisés", value: stats?.jokersUsed ?? 0, emoji: "🃏" },
   ] as const;
@@ -115,6 +116,22 @@ export default async function ProfilePage() {
 
       {/* Stats grid */}
       <div className="mb-6 grid grid-cols-2 gap-3">
+        {/* Carte Points cliquable → page barème */}
+        <Link href="/profile/scoring">
+          <Card className="glass relative flex cursor-pointer items-center gap-3 p-4 transition-all duration-200 hover:border-[var(--color-gold)]/40">
+            <div className="flex-1">
+              <p className="text-2xl">🏆</p>
+              <p className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--color-gold)]">
+                {stats?.points ?? 0}
+              </p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+                Points
+              </p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+          </Card>
+        </Link>
+
         {STATS.map((stat) => (
           <Card
             key={stat.label}

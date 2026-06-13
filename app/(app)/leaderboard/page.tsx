@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { LiveRefresher } from "@/components/live-refresher";
 import { GroupSwitcher } from "@/components/group-switcher";
 import { cn } from "@/lib/utils";
-import { getLiveLeaderboard, getBadges } from "@/lib/data/queries";
+import { getLiveLeaderboard } from "@/lib/data/queries";
 import {
   getMyGroups,
   getGroupMemberIds,
@@ -30,14 +30,8 @@ export default async function LeaderboardPage() {
     getGroupMemberIds(activeGroup.id),
   ]);
 
-  const [{ entries, hasLive }, badges] = await Promise.all([
-    getLiveLeaderboard(memberIds),
-    getBadges(),
-  ]);
+  const { entries, hasLive } = await getLiveLeaderboard(memberIds);
   const top3 = entries.slice(0, 3);
-
-  const badgeEmoji = (key: string) =>
-    badges.find((b) => b.key === key)?.emoji ?? "";
 
   return (
     <>
@@ -119,21 +113,14 @@ export default async function LeaderboardPage() {
                 <Evolution value={user.evolution} />
               </div>
 
-              {/* Nom + badges */}
+              {/* Nom */}
               <div className="min-w-0 flex-1">
                 <p className={cn("truncate font-medium", isChampion && "font-bold")}>
                   {user.name}
                 </p>
-                <div className="flex items-center gap-2">
-                  {user.badges.length > 0 && (
-                    <span className="text-xs leading-none">
-                      {user.badges.map(badgeEmoji).join(" ")}
-                    </span>
-                  )}
-                  <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
-                    {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""} · {user.correctResults} bon{user.correctResults !== 1 ? "s" : ""}
-                  </span>
-                </div>
+                <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
+                  {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""} · {user.correctResults} bon{user.correctResults !== 1 ? "s" : ""}
+                </span>
               </div>
 
               {/* Points (+ provisoires en direct) */}

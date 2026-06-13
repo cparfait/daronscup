@@ -11,6 +11,7 @@ import {
   getMatchesForResultEntry,
   getAllMatchesBrief,
   getAdminGroups,
+  getAdminPredictions,
 } from "@/lib/data/admin";
 
 export const metadata = { title: "Admin · DaronsFC" };
@@ -22,12 +23,13 @@ export default async function AdminPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const [stats, users, matches, allMatches, groups] = await Promise.all([
+  const [stats, users, matches, allMatches, groups, predictionMap] = await Promise.all([
     getAdminStats(),
     getAdminUsers(),
     getMatchesForResultEntry(),
     getAllMatchesBrief(),
     getAdminGroups(),
+    getAdminPredictions(),
   ]);
 
   const STATS = [
@@ -42,7 +44,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 py-6">
+    <main className="mx-auto min-h-dvh max-w-md overflow-x-hidden px-4 py-6">
       <Link
         href="/dashboard"
         className="mb-4 inline-flex items-center gap-1 text-sm text-[var(--color-muted)] hover:text-[var(--color-cream)]"
@@ -89,6 +91,7 @@ export default async function AdminPage() {
         matches={matches}
         allMatches={allMatches}
         groups={groups}
+        predictions={predictionMap}
         currentUserId={session.user.id}
       />
     </main>

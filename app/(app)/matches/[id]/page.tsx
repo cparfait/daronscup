@@ -9,6 +9,7 @@ import { Flag } from "@/components/flag";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMatch, getMatchPredictions } from "@/lib/data/queries";
+import { getActiveGroup, getGroupMemberIds } from "@/lib/groups";
 import { STAGE_LABELS, type MatchPrediction } from "@/lib/data/matches";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
 import { formatKickoff } from "@/lib/utils";
@@ -66,10 +67,17 @@ export default async function MatchDetailPage({
   const live = match.live;
   const group = match.group ? `Groupe ${match.group}` : STAGE_LABELS[match.stage];
 
-  // Après le coup d'envoi : les pronos de TOUS les joueurs deviennent publics.
+  // Après le coup d'envoi : les pronos des joueurs du groupe actif deviennent publics.
   let predictions: MatchPrediction[] = [];
   if (locked) {
-    predictions = await getMatchPredictions(id);
+    let memberIds: string[] | undefined;
+    if (session?.user?.id) {
+      const activeGroup = await getActiveGroup(session.user.id);
+      if (activeGroup) {
+        memberIds = await getGroupMemberIds(activeGroup.id);
+      }
+    }
+    predictions = await getMatchPredictions(id, memberIds);
   }
 
   return (

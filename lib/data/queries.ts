@@ -294,16 +294,21 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
  * (anti-influence). Triés par points décroissants.
  */
 export async function getMatchPredictions(
-  matchId: string
+  matchId: string,
+  memberIds?: string[]
 ): Promise<MatchPrediction[]> {
   try {
+    if (memberIds && memberIds.length === 0) return [];
     const [match, preds] = await Promise.all([
       prisma.match.findUnique({
         where: { id: matchId },
         include: { result: true },
       }),
       prisma.prediction.findMany({
-        where: { matchId },
+        where: {
+          matchId,
+          ...(memberIds ? { userId: { in: memberIds } } : {}),
+        },
         include: { user: { select: { id: true, name: true } } },
         orderBy: { submittedAt: "asc" },
       }),
@@ -344,13 +349,20 @@ export async function getMatchPredictions(
 export async function getPredictionComparison(
   viewerId: string,
   targetId: string
-): Promise<{ targetName: string; rows: ComparisonRow[] } | null> {
+): Promise<{ targetName: string; targetBadges: string[]; rows: ComparisonRow[] } | null> {
   try {
     const target = await prisma.user.findUnique({
       where: { id: targetId },
       select: { name: true },
     });
     if (!target) return null;
+
+    const [targetBadges] = await Promise.all([
+      prisma.userBadge.findMany({
+        where: { userId: targetId },
+        include: { badge: true },
+      }),
+    ]);
 
     const now = new Date();
     const targetPreds = await prisma.prediction.findMany({
@@ -396,7 +408,7 @@ export async function getPredictionComparison(
       };
     });
 
-    return { targetName: target.name ?? "Anonyme", rows };
+    return { targetName: target.name ?? "Anonyme", targetBadges: targetBadges.map((b) => b.badge.key), rows };
   } catch {
     return null;
   }

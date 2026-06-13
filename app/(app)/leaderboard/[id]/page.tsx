@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
-import { getPredictionComparison } from "@/lib/data/queries";
+import { getPredictionComparison, getBadges } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +37,16 @@ export default async function ComparePage({
   const session = await auth();
   if (!session?.user?.id) notFound();
 
-  const data = await getPredictionComparison(session.user.id, id);
+  const [data, badgeCatalog] = await Promise.all([
+    getPredictionComparison(session.user.id, id),
+    getBadges(),
+  ]);
   if (!data) notFound();
+
+  const badgeEmoji = (key: string) =>
+    badgeCatalog.find((b) => b.key === key)?.emoji ?? "";
+  const badgeLabel = (key: string) =>
+    badgeCatalog.find((b) => b.key === key)?.label ?? key;
 
   const isSelf = id === session.user.id;
 
@@ -57,6 +65,20 @@ export default async function ComparePage({
         subtitle={isSelf ? undefined : "Comparé aux tiens"}
       />
 
+      {data.targetBadges.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {data.targetBadges.map((key) => (
+            <span
+              key={key}
+              title={badgeLabel(key)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-1 text-sm"
+            >
+              <span className="text-base">{badgeEmoji(key)}</span>
+              <span className="text-xs font-medium">{badgeLabel(key)}</span>
+            </span>
+          ))}
+        </div>
+      )}
       {data.rows.length === 0 && (
         <Card className="glass p-8 text-center">
           <p className="text-sm text-[var(--color-muted)]">

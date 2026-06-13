@@ -13,6 +13,8 @@ import {
   Trash2,
   Users,
   Copy,
+  ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import type {
   AdminMatchBrief,
   AdminMatchResult,
   AdminGroup,
+  AdminPredictionMap,
 } from "@/lib/data/admin";
 
 export function AdminConsole({
@@ -28,12 +31,14 @@ export function AdminConsole({
   matches,
   allMatches,
   groups,
+  predictions,
   currentUserId,
 }: {
   users: AdminUser[];
   matches: AdminMatchResult[];
   allMatches: AdminMatchBrief[];
   groups: AdminGroup[];
+  predictions: AdminPredictionMap;
   currentUserId: string;
 }) {
   return (
@@ -41,7 +46,7 @@ export function AdminConsole({
       <SyncPanel />
       <InvitePanel />
       <GroupsPanel groups={groups} />
-      <ImportPredictionPanel users={users} matches={allMatches} />
+      <ImportPredictionPanel users={users} matches={allMatches} predictions={predictions} />
       <ManualScorePanel matches={matches} />
       <RescorePanel />
       <UsersPanel users={users} currentUserId={currentUserId} />
@@ -51,9 +56,10 @@ export function AdminConsole({
   );
 }
 
-/* ─── Liens d'invitation de tous les groupes ─── */
+/* ─── Consultation des groupes (membres + chat lecture seule) ─── */
 function GroupsPanel({ groups }: { groups: AdminGroup[] }) {
   const { msg, flash } = useFeedback();
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const copyLink = async (name: string, token: string) => {
     const url = `${window.location.origin}/join/${token}`;
@@ -96,28 +102,105 @@ function GroupsPanel({ groups }: { groups: AdminGroup[] }) {
           <p className="mt-3 text-sm text-[var(--color-muted)]">Aucun groupe.</p>
         ) : (
           <div className="mt-3 flex flex-col gap-2">
-            {groups.map((g) => (
-              <div
-                key={g.id}
-                className="flex items-center gap-2 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="text-xs text-[var(--color-muted)]">
-                    {g.memberCount} membre{g.memberCount > 1 ? "s" : ""}
-                    {g.createdByName ? ` · ${g.createdByName}` : ""}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyLink(g.name, g.token)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-cream)]"
+            {groups.map((g) => {
+              const open = openId === g.id;
+              return (
+                <div
+                  key={g.id}
+                  className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]"
                 >
-                  <Copy className="size-3" />
-                  Copier
-                </button>
-              </div>
-            ))}
+                  {/* En-tête cliquable */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(open ? null : g.id)}
+                    className="flex w-full items-center gap-2 p-2.5 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{g.name}</p>
+                      <p className="text-xs text-[var(--color-muted)]">
+                        {g.memberCount} membre{g.memberCount > 1 ? "s" : ""}
+                        {g.createdByName ? ` · ${g.createdByName}` : ""}
+                        {g.recentMessages.length > 0 && (
+                          <>
+                            {" · "}
+                            <MessageSquare className="mb-0.5 inline size-3" />
+                            {g.recentMessages.length}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`size-4 shrink-0 text-[var(--color-muted)] transition-transform ${open ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {/* Détail dépliable */}
+                  {open && (
+                    <div className="border-t border-[var(--color-border-subtle)] px-2.5 pb-2.5 pt-2">
+                      {/* Membres */}
+                      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+                        Membres
+                      </p>
+                      <div className="mb-3 flex flex-col gap-1">
+                        {g.members.map((m) => (
+                          <div
+                            key={m.id}
+                            className="flex items-center gap-2 rounded-lg bg-[var(--color-surface)] px-2 py-1"
+                          >
+                            <span className="truncate text-xs font-medium">
+                              {m.name}
+                            </span>
+                            {m.role === "OWNER" && (
+                              <span className="rounded bg-[var(--color-gold)]/15 px-1 py-0.5 text-[8px] font-bold uppercase text-[var(--color-gold)]">
+                                Owner
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Derniers messages */}
+                      {g.recentMessages.length > 0 ? (
+                        <>
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+                            Derniers messages
+                          </p>
+                          <div className="flex flex-col gap-1">
+                            {g.recentMessages.map((m) => (
+                              <div
+                                key={m.id}
+                                className="rounded-lg bg-[var(--color-surface)] px-2 py-1.5"
+                              >
+                                <span className="text-xs font-semibold text-[var(--color-pitch-bright)]">
+                                  {m.userName}
+                                </span>
+                                <span className="ml-1.5 text-xs text-[var(--color-cream)]">
+                                  {m.content}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-[var(--color-muted)]">
+                          Aucun message.
+                        </p>
+                      )}
+
+                      {/* Lien d'invitation */}
+                      <button
+                        type="button"
+                        onClick={() => copyLink(g.name, g.token)}
+                        className="mt-3 flex items-center gap-1.5 rounded-lg border border-[var(--color-border-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-muted)] transition-colors hover:text-[var(--color-cream)]"
+                      >
+                        <Copy className="size-3" />
+                        Copier le lien
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
         {msg && (
@@ -532,9 +615,11 @@ function RescorePanel() {
 function ImportPredictionPanel({
   users,
   matches,
+  predictions,
 }: {
   users: AdminUser[];
   matches: AdminMatchBrief[];
+  predictions: AdminPredictionMap;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -544,6 +629,15 @@ function ImportPredictionPanel({
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
   const [joker, setJoker] = useState(false);
+
+  const existing = userId && matchId ? predictions[`${userId}|${matchId}`] : undefined;
+
+  const onSelectMatch = (id: string) => {
+    setMatchId(id);
+    setHome("");
+    setAway("");
+    setJoker(false);
+  };
 
   const submit = () =>
     start(async () => {
@@ -586,6 +680,10 @@ function ImportPredictionPanel({
       }
     });
 
+  const hasCount = userId
+    ? matches.filter((m) => predictions[`${userId}|${m.id}`]).length
+    : 0;
+
   return (
     <Card>
       <CardContent className="p-4">
@@ -601,9 +699,15 @@ function ImportPredictionPanel({
           </p>
         ) : (
           <div className="flex flex-col gap-3">
+            {/* Joueur */}
             <select
               value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              onChange={(e) => {
+                setUserId(e.target.value);
+                setHome("");
+                setAway("");
+                setJoker(false);
+              }}
               className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
             >
               {users.map((u) => (
@@ -613,19 +717,52 @@ function ImportPredictionPanel({
               ))}
             </select>
 
-            <select
-              value={matchId}
-              onChange={(e) => setMatchId(e.target.value)}
-              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
-            >
-              {matches.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.homeTeam} – {m.awayTeam}
-                  {m.finished ? " ✓" : ""}
-                </option>
-              ))}
-            </select>
+            {/* Compteur de pronos */}
+            <p className="text-xs text-[var(--color-muted)]">
+              {hasCount}/{matches.length} pronos effectués
+            </p>
 
+            {/* Liste des matchs avec statut */}
+            <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-xl border border-[var(--color-border-subtle)] p-1.5">
+              {matches.map((m) => {
+                const pred = userId ? predictions[`${userId}|${m.id}`] : undefined;
+                const selected = m.id === matchId;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onSelectMatch(m.id)}
+                    className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                      selected
+                        ? "bg-[var(--color-pitch)]/15"
+                        : "hover:bg-[var(--color-surface-2)]"
+                    }`}
+                  >
+                    <span className="shrink-0">
+                      {pred ? (
+                        <Check className="size-4 text-[var(--color-pitch-bright)]" />
+                      ) : (
+                        <span className="block size-4 rounded-full border-2 border-[var(--color-border-subtle)]" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-xs ${selected ? "font-bold" : "font-medium"}`}>
+                        {m.homeTeam} – {m.awayTeam}
+                      </p>
+                      <p className="text-[10px] text-[var(--color-muted)]">
+                        {pred
+                          ? `${pred.homeScore}-${pred.awayScore}${pred.joker ? " 🃏" : ""}`
+                          : m.finished
+                            ? "terminé"
+                            : "à venir"}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Saisie du score */}
             <div className="flex items-center justify-center gap-3">
               <input
                 type="number"
@@ -633,7 +770,7 @@ function ImportPredictionPanel({
                 max={20}
                 value={home}
                 onChange={(e) => setHome(e.target.value)}
-                placeholder="0"
+                placeholder={existing ? String(existing.homeScore) : "0"}
                 className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
               />
               <span className="text-xl font-bold text-[var(--color-muted)]">–</span>
@@ -643,7 +780,7 @@ function ImportPredictionPanel({
                 max={20}
                 value={away}
                 onChange={(e) => setAway(e.target.value)}
-                placeholder="0"
+                placeholder={existing ? String(existing.awayScore) : "0"}
                 className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
               />
             </div>
