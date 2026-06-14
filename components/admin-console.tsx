@@ -33,6 +33,8 @@ export function AdminConsole({
   groups,
   predictions,
   currentUserId,
+  championTeams,
+  championOverride,
 }: {
   users: AdminUser[];
   matches: AdminMatchResult[];
@@ -40,6 +42,8 @@ export function AdminConsole({
   groups: AdminGroup[];
   predictions: AdminPredictionMap;
   currentUserId: string;
+  championTeams: { team: string; flag: string }[];
+  championOverride: { team: string; flag: string } | null;
 }) {
   return (
     <div className="grid gap-4">
@@ -49,10 +53,114 @@ export function AdminConsole({
       <ImportPredictionPanel users={users} matches={allMatches} predictions={predictions} />
       <ManualScorePanel matches={matches} />
       <RescorePanel />
+      <ChampionPanel teams={championTeams} current={championOverride} />
       <UsersPanel users={users} currentUserId={currentUserId} />
       <CloseTournamentPanel />
       <ResetPanel />
     </div>
+  );
+}
+
+/* ─── Désignation manuelle du champion (finale aux tirs au but) ─── */
+function ChampionPanel({
+  teams,
+  current,
+}: {
+  teams: { team: string; flag: string }[];
+  current: { team: string; flag: string } | null;
+}) {
+  const router = useRouter();
+  const [team, setTeam] = useState(current?.team ?? teams[0]?.team ?? "");
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+
+  const setChampion = () =>
+    start(async () => {
+      try {
+        const res = await fetch("/api/admin/champion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ team }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          flash("Champion désigné, bonus crédité ✅", true);
+          router.refresh();
+        } else {
+          flash(data.error ?? "Échec.", false);
+        }
+      } catch {
+        flash("Réseau indisponible.", false);
+      }
+    });
+
+  const clearChampion = () =>
+    start(async () => {
+      try {
+        const res = await fetch("/api/admin/champion", { method: "DELETE" });
+        if (res.ok) {
+          flash("Désignation annulée.", true);
+          router.refresh();
+        } else {
+          flash("Échec.", false);
+        }
+      } catch {
+        flash("Réseau indisponible.", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">🏆 Vainqueur du tournoi</CardTitle>
+        <p className="mt-1 mb-3 text-xs text-[var(--color-muted)]">
+          À n&apos;utiliser que si la <strong>finale se joue aux tirs au but</strong> :
+          le vainqueur ne peut pas être déduit du score. Désigne-le ici pour
+          créditer les <strong>+50 pts</strong> aux bons parieurs (sinon il est
+          déterminé automatiquement par le score de la finale).
+        </p>
+
+        {current && (
+          <p className="mb-3 text-sm text-[var(--color-cream)]">
+            Champion désigné : <strong>{current.team}</strong>
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <select
+            value={team}
+            onChange={(e) => setTeam(e.target.value)}
+            className="flex-1 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none focus:border-[var(--color-pitch)]"
+          >
+            {teams.map((t) => (
+              <option key={t.team} value={t.team}>
+                {t.team}
+              </option>
+            ))}
+          </select>
+          <Button onClick={setChampion} disabled={pending || !team}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : "Désigner"}
+          </Button>
+        </div>
+
+        {current && (
+          <button
+            type="button"
+            onClick={clearChampion}
+            disabled={pending}
+            className="mt-2 text-xs text-[var(--color-muted)] underline hover:text-[var(--color-cream)]"
+          >
+            Annuler la désignation manuelle
+          </button>
+        )}
+
+        {msg && (
+          <p className={`mt-2 text-xs ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}>
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

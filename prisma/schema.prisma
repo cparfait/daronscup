@@ -35,6 +35,7 @@ model User {
   badges        UserBadge[]
   pushSubs      PushSubscription[]
   score         Score?
+  championPick  ChampionPick?
   groupMemberships GroupMember[]
 
   accounts      Account[]
@@ -119,6 +120,26 @@ model Score {
   correctResults Int    @default(0)
   previousRank   Int? // rang avant le dernier match terminé (pour l'évolution ▲▼)
   user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Pari « vainqueur du tournoi » : un seul choix par joueur, définitif, qui
+// rapporte un bonus (CHAMPION_BONUS) si l'équipe choisie gagne la finale.
+model ChampionPick {
+  userId    String   @id
+  team      String // nom de l'équipe (affichage)
+  flag      String // code drapeau (fr, br, …)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Vainqueur du tournoi désigné MANUELLEMENT par un admin — pour le cas d'une
+// finale gagnée aux tirs au but (score nul, vainqueur indéductible du score
+// fourni par l'API). Singleton (id = "singleton"). Prioritaire sur le score.
+model ChampionOverride {
+  id    String   @id @default("singleton")
+  team  String
+  flag  String
+  setAt DateTime @default(now()) @updatedAt
 }
 
 model Message {

@@ -8,7 +8,7 @@
 
 import { prisma } from "./prisma";
 import { countryCode } from "./flags";
-import { computePoints } from "./scoring";
+import { computePoints, CHAMPION_BONUS } from "./scoring";
 import { compareRanked } from "./ranking";
 import { postMatchRecaps, postKickoffReminders } from "./match-recap";
 import type { Stage } from "./data/matches";
@@ -418,6 +418,22 @@ export async function applyMatchResult(
       // Recalcul complet du score de chaque joueur concerné, à partir de TOUS
       // ses pronos sur des matchs terminés (source de vérité = les résultats).
       const userIds = [...new Set(preds.map((p) => p.userId))];
+
+      // Bonus « vainqueur du tournoi » : connu seulement quand la finale est
+      // jouée. On l'intègre directement au score figé pour rester cohérent
+      // partout (classement, profil…).
+      const championFlag = await getChampionFlagTx(tx);
+      const correctPickers = championFlag
+        ? new Set(
+            (
+              await tx.championPick.findMany({
+                where: { userId: { in: userIds }, flag: championFlag },
+                select: { userId: true },
+              })
+            ).map((c) => c.userId)
+          )
+        : new Set<string>();
+
       for (const userId of userIds) {
         const userPreds = await tx.prediction.findMany({
           where: { userId, match: { result: { status: "FINISHED" } } },
@@ -438,6 +454,7 @@ export async function applyMatchResult(
           if (b.exactScore) exactScores++;
           if (b.correctResult) correctResults++;
         }
+        if (correctPickers.has(userId)) points += CHAMPION_BONUS;
         await tx.score.upsert({
           where: { userId },
           update: { points, exactScores, correctResults },
@@ -466,7 +483,86 @@ export async function applyMatchResult(
     );
   }
 
+  // Bonus « vainqueur du tournoi » : dès que la finale est jouée, on crédite les
+  // +20 pts à TOUS les bons parieurs (y compris ceux qui n'ont pas pronostiqué
+  // la finale, donc absents du recalcul ci-dessus). Idempotent.
+  if (justFinished || opts.force) {
+    await settleChampionBonus().catch((e) =>
+      console.error("[champion] ignoré:", e instanceof Error ? e.message : e)
+    );
+  }
+
   return { scored: preds.length };
+}
+
+// ─────────────────────────────────────────────
+// Bonus « vainqueur du tournoi »
+// ─────────────────────────────────────────────
+
+type ChampionDb = {
+  match: { findFirst: typeof prisma.match.findFirst };
+  championOverride: { findUnique: typeof prisma.championOverride.findUnique };
+};
+
+/** Drapeau du vainqueur du tournoi (null tant qu'il n'est pas tranché). */
+async function getChampionFlagTx(db: ChampionDb): Promise<string | null> {
+  // 1) Override admin (finale aux tirs au but) — prioritaire.
+  const override = await db.championOverride.findUnique({
+    where: { id: "singleton" },
+  });
+  if (override) return override.flag;
+
+  // 2) Sinon, déduit du score de la finale.
+  const final = await db.match.findFirst({
+    where: { stage: "FINAL" },
+    include: { result: true },
+  });
+  if (!final?.result || final.result.status !== "FINISHED") return null;
+  const r = final.result;
+  // Finale aux tirs au but (score nul) : vainqueur indéductible du score seul
+  // → en attente d'un override admin.
+  if (r.homeScore === r.awayScore) return null;
+  return r.homeScore > r.awayScore ? final.homeFlag : final.awayFlag;
+}
+
+/**
+ * Recrédite le bonus champion à tous les parieurs une fois la finale jouée.
+ * Recalcule chaque score depuis zéro (matchs + bonus) → idempotent.
+ */
+export async function settleChampionBonus(): Promise<void> {
+  const championFlag = await getChampionFlagTx(prisma);
+  if (!championFlag) return;
+
+  const pickers = await prisma.championPick.findMany({
+    select: { userId: true, flag: true },
+  });
+  for (const pick of pickers) {
+    const userPreds = await prisma.prediction.findMany({
+      where: { userId: pick.userId, match: { result: { status: "FINISHED" } } },
+      include: { match: { include: { result: true } } },
+    });
+    let points = 0;
+    let exactScores = 0;
+    let correctResults = 0;
+    for (const up of userPreds) {
+      const r = up.match.result;
+      if (!r) continue;
+      const b = computePoints(
+        { homeScore: up.homeScore, awayScore: up.awayScore },
+        { homeScore: r.homeScore, awayScore: r.awayScore },
+        up.joker
+      );
+      points += b.points;
+      if (b.exactScore) exactScores++;
+      if (b.correctResult) correctResults++;
+    }
+    if (pick.flag === championFlag) points += CHAMPION_BONUS;
+    await prisma.score.upsert({
+      where: { userId: pick.userId },
+      update: { points, exactScores, correctResults },
+      create: { userId: pick.userId, points, exactScores, correctResults },
+    });
+  }
 }
 
 // ─────────────────────────────────────────────

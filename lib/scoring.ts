@@ -18,6 +18,9 @@
  * Fonction pure — entièrement testable sans base de données.
  */
 
+/** Bonus accordé au joueur ayant désigné le bon vainqueur du tournoi. */
+export const CHAMPION_BONUS = 50;
+
 export type ScoreInput = {
   homeScore: number;
   awayScore: number;

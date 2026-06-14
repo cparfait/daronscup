@@ -4,6 +4,7 @@ import { ArrowUp, ArrowDown, Minus, Radio, ChevronRight } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
+import { Flag } from "@/components/flag";
 import { LiveRefresher } from "@/components/live-refresher";
 import { GroupSwitcher } from "@/components/group-switcher";
 import { cn } from "@/lib/utils";
@@ -122,6 +123,16 @@ export default async function LeaderboardPage() {
                   {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""} · {user.correctResults} bon{user.correctResults !== 1 ? "s" : ""}
                 </span>
               </div>
+
+              {/* Champion choisi (pari vainqueur du tournoi) */}
+              {user.championFlag && (
+                <span
+                  title="Son pari : vainqueur du tournoi"
+                  className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-[var(--color-border-medium)]"
+                >
+                  <Flag code={user.championFlag} className="h-full w-full" />
+                </span>
+              )}
 
               {/* Points (+ provisoires en direct) */}
               <div className="flex shrink-0 flex-col items-end">

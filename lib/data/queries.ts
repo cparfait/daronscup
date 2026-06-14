@@ -116,6 +116,193 @@ export async function getFranceMatchToday(): Promise<Match | null> {
   }
 }
 
+export type PersonalStats = {
+  totalPredictions: number;
+  finished: number;
+  points: number;
+  avgPoints: number;
+  exactScores: number;
+  correctResults: number;
+  successRate: number; // 0..1 — part des pronos terminés ayant marqué des points
+  exactRate: number; // 0..1 — part des pronos terminés au score exact
+  jokersUsed: number;
+  favoriteTeam: { team: string; flag: string; count: number } | null;
+  bestPrediction: {
+    homeTeam: string;
+    awayTeam: string;
+    homeFlag: string;
+    awayFlag: string;
+    predHome: number;
+    predAway: number;
+    resHome: number;
+    resAway: number;
+    points: number;
+  } | null;
+  championPick: { team: string; flag: string } | null;
+};
+
+/** Stats personnelles détaillées d'un joueur (page « Wrapped »). */
+export async function getPersonalStats(userId: string): Promise<PersonalStats> {
+  const empty: PersonalStats = {
+    totalPredictions: 0,
+    finished: 0,
+    points: 0,
+    avgPoints: 0,
+    exactScores: 0,
+    correctResults: 0,
+    successRate: 0,
+    exactRate: 0,
+    jokersUsed: 0,
+    favoriteTeam: null,
+    bestPrediction: null,
+    championPick: null,
+  };
+  try {
+    const [preds, championPick] = await Promise.all([
+      prisma.prediction.findMany({
+        where: { userId },
+        include: { match: { include: { result: true } } },
+      }),
+      prisma.championPick.findUnique({
+        where: { userId },
+        select: { team: true, flag: true },
+      }),
+    ]);
+
+    let finished = 0;
+    let points = 0;
+    let exactScores = 0;
+    let correctResults = 0;
+    let jokersUsed = 0;
+    const backed = new Map<string, { flag: string; count: number }>();
+    let best: PersonalStats["bestPrediction"] = null;
+
+    for (const p of preds) {
+      if (p.joker) jokersUsed++;
+
+      // « Équipe fétiche » = celle que le joueur soutient le plus (prono victoire).
+      if (p.homeScore !== p.awayScore) {
+        const home = p.homeScore > p.awayScore;
+        const team = home ? p.match.homeTeam : p.match.awayTeam;
+        const flag = home ? p.match.homeFlag : p.match.awayFlag;
+        const e = backed.get(team) ?? { flag, count: 0 };
+        e.count++;
+        backed.set(team, e);
+      }
+
+      const r = p.match.result;
+      if (r && r.status === "FINISHED") {
+        finished++;
+        const b = computePoints(
+          { homeScore: p.homeScore, awayScore: p.awayScore },
+          { homeScore: r.homeScore, awayScore: r.awayScore },
+          p.joker
+        );
+        points += b.points;
+        if (b.exactScore) exactScores++;
+        if (b.correctResult) correctResults++;
+        if (!best || b.points > best.points) {
+          best = {
+            homeTeam: p.match.homeTeam,
+            awayTeam: p.match.awayTeam,
+            homeFlag: p.match.homeFlag,
+            awayFlag: p.match.awayFlag,
+            predHome: p.homeScore,
+            predAway: p.awayScore,
+            resHome: r.homeScore,
+            resAway: r.awayScore,
+            points: b.points,
+          };
+        }
+      }
+    }
+
+    const fav = [...backed.entries()].sort((a, b) => b[1].count - a[1].count)[0];
+
+    return {
+      totalPredictions: preds.length,
+      finished,
+      points,
+      avgPoints: finished ? points / finished : 0,
+      exactScores,
+      correctResults,
+      successRate: finished ? correctResults / finished : 0,
+      exactRate: finished ? exactScores / finished : 0,
+      jokersUsed,
+      favoriteTeam: fav
+        ? { team: fav[0], flag: fav[1].flag, count: fav[1].count }
+        : null,
+      bestPrediction: best && best.points > 0 ? best : null,
+      championPick,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/** Pari « vainqueur du tournoi » d'un joueur, ou null s'il n'a pas encore choisi. */
+export async function getChampionPick(
+  userId: string
+): Promise<{ team: string; flag: string } | null> {
+  try {
+    return await prisma.championPick.findUnique({
+      where: { userId },
+      select: { team: true, flag: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Liste des équipes pariables (distinctes, triées), déduite des matchs. */
+export async function getChampionableTeams(): Promise<
+  { team: string; flag: string }[]
+> {
+  try {
+    const matches = await prisma.match.findMany({
+      select: { homeTeam: true, homeFlag: true, awayTeam: true, awayFlag: true },
+    });
+    const byTeam = new Map<string, string>();
+    for (const m of matches) {
+      if (m.homeTeam) byTeam.set(m.homeTeam, m.homeFlag);
+      if (m.awayTeam) byTeam.set(m.awayTeam, m.awayFlag);
+    }
+    return [...byTeam.entries()]
+      .map(([team, flag]) => ({ team, flag }))
+      .sort((a, b) => a.team.localeCompare(b.team, "fr"));
+  } catch {
+    return [];
+  }
+}
+
+/** Vainqueur du tournoi désigné manuellement par un admin (ou null). */
+export async function getChampionOverride(): Promise<{
+  team: string;
+  flag: string;
+} | null> {
+  try {
+    return await prisma.championOverride.findUnique({
+      where: { id: "singleton" },
+      select: { team: true, flag: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Le pari champion est-il encore ouvert ? (fermé dès la finale jouée). */
+export async function isChampionPickOpen(): Promise<boolean> {
+  try {
+    const final = await prisma.match.findFirst({
+      where: { stage: "FINAL" },
+      include: { result: true },
+    });
+    return !(final?.result && final.result.status === "FINISHED");
+  } catch {
+    return true;
+  }
+}
+
 /** Un match par son id, ou null. */
 export async function getMatch(id: string): Promise<Match | null> {
   try {
@@ -247,7 +434,11 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
           banned: false,
           ...(memberIds ? { id: { in: memberIds } } : {}),
         },
-        include: { score: true, badges: { include: { badge: true } } },
+        include: {
+          score: true,
+          badges: { include: { badge: true } },
+          championPick: true,
+        },
       }),
       prisma.result.findMany({
         where: { status: "LIVE" },
@@ -299,6 +490,7 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
           correctResults: u.score?.correctResults ?? 0,
           badges: u.badges.map((b) => b.badge.key),
           previousRank: u.score?.previousRank ?? null,
+          championFlag: u.championPick?.flag ?? null,
         };
       })
       // Tri live : même comparateur, mais sur le total (acquis + provisoire).
@@ -320,6 +512,7 @@ export async function getLiveLeaderboard(memberIds?: string[]): Promise<{
         exactScores: e.exactScores,
         correctResults: e.correctResults,
         badges: e.badges,
+        championFlag: e.championFlag,
       }));
 
     return { entries, hasLive: liveResults.length > 0 };

@@ -146,6 +146,24 @@ export default async function ProfilePage() {
         ))}
       </div>
 
+      {/* Lien vers le Wrapped / stats perso */}
+      <Link href="/profile/stats" className="mb-6 block">
+        <Card className="glass card-hover flex items-center gap-3 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-gold)]/15 text-lg">
+            🎬
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Ton Wrapped CdM
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Taux de réussite, équipe fétiche, meilleur prono…
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
       {/* Jokers par phase */}
       {jokers && (
         <Card className="glass mb-6 p-4">

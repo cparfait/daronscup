@@ -15,7 +15,11 @@ import {
   getMatches,
   getMyPrediction,
   getUserStats,
+  getChampionPick,
+  getChampionableTeams,
+  isChampionPickOpen,
 } from "@/lib/data/queries";
+import { ChampionPickCard } from "@/components/champion-pick-card";
 import {
   getMyGroups,
   getGroupMemberIds,
@@ -48,6 +52,11 @@ export default async function DashboardPage() {
   ]);
 
   const stats = await getUserStats(userId);
+  const [championPick, championTeams, championOpen] = await Promise.all([
+    getChampionPick(userId),
+    getChampionableTeams(),
+    isChampionPickOpen(),
+  ]);
 
   const TOP_3 = leaderboard.slice(0, 3).map((u, i) => ({
     name: u.name,
@@ -131,6 +140,12 @@ export default async function DashboardPage() {
       </div>
 
       <HomeOnboarding />
+
+      <ChampionPickCard
+        pick={championPick}
+        teams={championTeams}
+        open={championOpen}
+      />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
         <Link href="/profile/scoring">

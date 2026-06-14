@@ -83,6 +83,8 @@ export type LiveLeaderboardEntry = {
   badges: string[];
   /** Évolution de rang vs match précédent (positif = monte), null si inconnu. */
   evolution: number | null;
+  /** Drapeau de l'équipe choisie comme vainqueur du tournoi (ou null). */
+  championFlag: string | null;
 };
 
 /** Statistiques agrégées d'un joueur (page profil). */
