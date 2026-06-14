@@ -206,6 +206,39 @@ body {
   box-shadow: 0 0 20px rgba(22, 163, 74, 0.2), 0 0 40px rgba(22, 163, 74, 0.1);
 }
 
+/* ── Thème « jour de match des Bleus » ──
+   On remappe l'accent principal (vert) vers le bleu France : boutons, accents
+   live, anneaux de focus, etc. prennent la teinte tricolore sans casser la mise
+   en page. L'or (points/trophées) reste tel quel — il se marie bien au bleu. */
+.theme-france {
+  --color-pitch: #1559c0;
+  --color-pitch-bright: #2b7fff;
+  --color-pitch-glow: rgba(43, 127, 255, 0.18);
+}
+.theme-france .glow-pitch {
+  box-shadow: 0 0 20px rgba(43, 127, 255, 0.22), 0 0 40px rgba(43, 127, 255, 0.12);
+}
+.theme-france .text-gradient-pitch {
+  background: linear-gradient(135deg, #2b7fff, #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.theme-france ::selection {
+  background-color: rgba(43, 127, 255, 0.35);
+}
+
+/* Liseré bleu-blanc-rouge réutilisable. */
+.fr-tricolore {
+  height: 4px;
+  background: linear-gradient(
+    to right,
+    #0055a4 0 33.333%,
+    #ffffff 33.333% 66.666%,
+    #ef4135 66.666% 100%
+  );
+}
+
 .glow-gold {
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.1);
 }

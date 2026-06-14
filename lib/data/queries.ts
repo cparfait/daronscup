@@ -76,6 +76,46 @@ export async function getMatches(): Promise<Match[]> {
   }
 }
 
+/** Code drapeau de l'équipe de France (flagcdn). */
+const FRANCE_FLAG = "fr";
+
+/** Date calendaire (YYYY-MM-DD) d'un instant, dans le fuseau de Paris. */
+function parisDateStr(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Le match de l'équipe de France prévu AUJOURD'HUI (fuseau Paris), ou null.
+ * Sert à activer le thème tricolore. Renvoie le plus tôt s'il y en a plusieurs.
+ */
+export async function getFranceMatchToday(): Promise<Match | null> {
+  try {
+    const now = Date.now();
+    const rows = await prisma.match.findMany({
+      where: {
+        OR: [{ homeFlag: FRANCE_FLAG }, { awayFlag: FRANCE_FLAG }],
+        // Fenêtre large (±1 j) pour couvrir tous les fuseaux, on affine ensuite.
+        kickoffAt: {
+          gte: new Date(now - 24 * 3_600_000),
+          lte: new Date(now + 24 * 3_600_000),
+        },
+      },
+      include: { result: true },
+      orderBy: { kickoffAt: "asc" },
+    });
+    const today = parisDateStr(new Date());
+    const match = rows.find((m) => parisDateStr(m.kickoffAt) === today);
+    return match ? toUiMatch(match) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Un match par son id, ou null. */
 export async function getMatch(id: string): Promise<Match | null> {
   try {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -101,6 +101,7 @@ export function MatchCardInteractive({
   const [joker, setJoker] = useState(prediction?.joker ?? false);
   const [comment, setComment] = useState(prediction?.comment ?? "");
   const [showComment, setShowComment] = useState(!!prediction?.comment);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -298,18 +299,23 @@ export function MatchCardInteractive({
           {/* Commentaire (optionnel, visible des autres après le coup d'envoi) */}
           {showComment ? (
             <textarea
+              ref={commentRef}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               maxLength={280}
               disabled={pending}
-              autoFocus
               placeholder="Un petit tacle pour tes potes ? (visible après le coup d'envoi)"
               className="h-16 w-full resize-none rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5 text-xs outline-none focus:border-[var(--color-pitch)]"
             />
           ) : (
             <button
               type="button"
-              onClick={() => setShowComment(true)}
+              onClick={() => {
+                setShowComment(true);
+                // Focus seulement sur action volontaire (pas au montage si un
+                // commentaire existe déjà → évite que la liste saute dessus).
+                requestAnimationFrame(() => commentRef.current?.focus());
+              }}
               className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-xs text-[var(--color-muted)] transition-colors hover:border-[var(--color-pitch)] hover:text-[var(--color-cream)]"
             >
               <MessageSquarePlus className="size-4 shrink-0 text-[var(--color-pitch-bright)]" />
