@@ -207,13 +207,38 @@ body {
 }
 
 /* ── Thème « jour de match des Bleus » ──
-   On remappe l'accent principal (vert) vers le bleu France : boutons, accents
-   live, anneaux de focus, etc. prennent la teinte tricolore sans casser la mise
-   en page. L'or (points/trophées) reste tel quel — il se marie bien au bleu. */
+   On remappe l'accent principal (vert) vers le bleu France ET on teinte le fond
+   et les surfaces en bleu nuit : boutons, cartes, accents live prennent la
+   couleur tricolore. L'or (points/trophées) reste tel quel — il se marie bien
+   au bleu. */
 .theme-france {
+  --color-bg: #0a1a44;
+  --color-bg-elevated: #0e2152;
+  --color-surface: #0f2150;
+  --color-surface-2: #15285c;
+  --color-surface-3: #1d3168;
+  --color-border-subtle: #1c2e5e;
+  --color-border-medium: #294484;
   --color-pitch: #1559c0;
   --color-pitch-bright: #2b7fff;
   --color-pitch-glow: rgba(43, 127, 255, 0.18);
+  /* Couvre tout le conteneur (min-h-dvh) en bleu nuit, dégradé subtil. */
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(43, 127, 255, 0.12), transparent 60%),
+    var(--color-bg);
+}
+/* Le fond global (hors conteneur, gouttières desktop) suit aussi. */
+body:has(.theme-france) {
+  background-color: #0a1a44;
+}
+/* Cartes en verre teintées bleu nuit (sinon elles restent gris foncé). */
+.theme-france .glass {
+  background: rgba(15, 33, 80, 0.6);
+  border-color: rgba(120, 160, 255, 0.1);
+}
+.theme-france .glass-strong {
+  background: rgba(15, 33, 80, 0.85);
+  border-color: rgba(120, 160, 255, 0.14);
 }
 .theme-france .glow-pitch {
   box-shadow: 0 0 20px rgba(43, 127, 255, 0.22), 0 0 40px rgba(43, 127, 255, 0.12);
