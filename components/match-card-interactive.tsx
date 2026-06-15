@@ -243,7 +243,7 @@ export function MatchCardInteractive({
       ) : (
         /* ── Pronostic inline ── */
         <div className="space-y-2.5">
-          {match.odds ? (
+          {match.odds && (
             <div>
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
                 Points en jeu
@@ -253,17 +253,6 @@ export function MatchCardInteractive({
                 <OutcomePts label="Nul" pts={outcomeResultPoints(match.odds, 0)} />
                 <OutcomePts flag={match.awayFlag} pts={outcomeResultPoints(match.odds, -1)} />
               </div>
-            </div>
-          ) : (
-            // Pas (encore) de cote → on montre quand même le barème classique.
-            <div className="rounded-lg bg-[var(--color-surface-2)] px-3 py-2 text-center text-[11px] leading-relaxed text-[var(--color-muted)]">
-              <span className="font-semibold uppercase tracking-wider">
-                Points en jeu
-              </span>{" "}
-              — score exact{" "}
-              <strong className="text-[var(--color-cream)]">3</strong> · bon écart{" "}
-              <strong className="text-[var(--color-cream)]">2</strong> · bon résultat{" "}
-              <strong className="text-[var(--color-cream)]">1</strong>
             </div>
           )}
 

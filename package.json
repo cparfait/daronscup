@@ -14,6 +14,7 @@
     "sync": "tsx --env-file=.env scripts/sync.ts",
     "rescore": "tsx --env-file=.env scripts/rescore.ts",
     "flags": "tsx scripts/fetch-flags.ts",
+    "odds:check": "tsx --env-file=.env scripts/check-odds.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
