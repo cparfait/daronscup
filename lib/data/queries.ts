@@ -275,6 +275,53 @@ export async function getChampionableTeams(): Promise<
   }
 }
 
+/** Une équipe championne pariée + les joueurs du groupe qui l'ont choisie. */
+export type GroupChampionPick = {
+  team: string;
+  flag: string;
+  fans: { userId: string; name: string; avatar: string | null }[];
+};
+
+/**
+ * Champions pariés par l'ensemble des membres d'un groupe, agrégés par équipe
+ * et triés du plus populaire au moins populaire. Sert à la page « Les champions
+ * du groupe » (ouverte depuis la carte champion du dashboard).
+ */
+export async function getGroupChampionPicks(
+  memberIds: string[]
+): Promise<GroupChampionPick[]> {
+  try {
+    if (memberIds.length === 0) return [];
+    const picks = await prisma.championPick.findMany({
+      where: { userId: { in: memberIds } },
+      include: { user: { select: { id: true, name: true, image: true, avatarUrl: true } } },
+    });
+
+    const byTeam = new Map<string, GroupChampionPick>();
+    for (const p of picks) {
+      const entry = byTeam.get(p.team) ?? { team: p.team, flag: p.flag, fans: [] };
+      entry.fans.push({
+        userId: p.user.id,
+        name: p.user.name ?? "Anonyme",
+        avatar: p.user.avatarUrl ?? p.user.image ?? null,
+      });
+      byTeam.set(p.team, entry);
+    }
+
+    return [...byTeam.values()]
+      .map((e) => ({
+        ...e,
+        fans: e.fans.sort((a, b) => a.name.localeCompare(b.name, "fr")),
+      }))
+      .sort(
+        (a, b) =>
+          b.fans.length - a.fans.length || a.team.localeCompare(b.team, "fr")
+      );
+  } catch {
+    return [];
+  }
+}
+
 /** Vainqueur du tournoi désigné manuellement par un admin (ou null). */
 export async function getChampionOverride(): Promise<{
   team: string;

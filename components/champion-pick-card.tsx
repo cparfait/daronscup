@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trophy, ChevronRight, Lock, X, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -29,25 +30,29 @@ export function ChampionPickCard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Déjà choisi → état verrouillé, plus d'invitation.
+  // Déjà choisi → état verrouillé, plus d'invitation. Cliquable : mène à la
+  // page listant les champions pariés par tout le groupe.
   if (pick) {
     return (
-      <Card className="glass mb-6 flex items-center gap-3 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/[0.04] p-4">
-        <Trophy className="size-5 shrink-0 text-[var(--color-gold)]" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-            Ton champion du tournoi
-          </p>
-          <p className="flex items-center gap-2 font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-cream)]">
-            <Flag code={pick.flag} className="h-4 w-6" />
-            {pick.team}
-          </p>
-        </div>
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-gold)]/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">
-          <Lock className="size-3" />
-          +50 si vainqueur
-        </span>
-      </Card>
+      <Link href="/champions" className="block">
+        <Card className="glass card-hover mb-6 flex items-center gap-3 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/[0.04] p-4">
+          <Trophy className="size-5 shrink-0 text-[var(--color-gold)]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              Ton champion du tournoi
+            </p>
+            <p className="flex items-center gap-2 font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-cream)]">
+              <Flag code={pick.flag} className="h-4 w-6" />
+              {pick.team}
+            </p>
+          </div>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-gold)]/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">
+            <Lock className="size-3" />
+            +50 si vainqueur
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
     );
   }
 
