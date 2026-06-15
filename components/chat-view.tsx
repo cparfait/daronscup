@@ -288,7 +288,7 @@ export function ChatView({
           const canDelete = isOwn || currentUser.isAdmin;
 
           const actions = (
-            <div className="flex shrink-0 flex-col items-center gap-1 self-center opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="flex shrink-0 flex-col items-center gap-1 self-center opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
               <button
                 type="button"
                 onClick={() => setPickerFor(pickerFor === msg.id ? null : msg.id)}
@@ -332,7 +332,7 @@ export function ChatView({
               {isOwn && actions}
 
               <Card
-                className={`relative max-w-[85%] overflow-visible p-3 transition-all duration-200 ${
+                className={`relative min-w-0 max-w-[85%] overflow-visible p-3 transition-all duration-200 ${
                   msg.pinned
                     ? "border-[var(--color-gold)]/40 bg-[var(--color-gold)]/5"
                     : isOwn
@@ -360,7 +360,9 @@ export function ChatView({
                   </span>
                 </div>
 
-                <p className="text-sm leading-relaxed">{msg.text}</p>
+                <p className="whitespace-pre-line break-words text-sm leading-relaxed">
+                  {msg.text}
+                </p>
 
                 {/* Réactions */}
                 {msg.reactions.length > 0 && (

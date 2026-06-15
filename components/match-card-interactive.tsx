@@ -53,7 +53,7 @@ function OutcomeColumn({
   disabled: boolean;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-2 px-2 py-2">
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-2 px-0 py-2">
       <Flag code={flag} className="h-8 w-12 shrink-0 drop-shadow" />
       <span className="w-full truncate text-center text-sm font-medium">{name}</span>
       {pts !== null && (
