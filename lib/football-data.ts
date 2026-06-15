@@ -479,8 +479,8 @@ export async function applyMatchResult(
   }
 
   // Bonus « vainqueur du tournoi » : dès que la finale est jouée, on crédite les
-  // +20 pts à TOUS les bons parieurs (y compris ceux qui n'ont pas pronostiqué
-  // la finale, donc absents du recalcul ci-dessus). Idempotent.
+  // +50 pts (CHAMPION_BONUS) à TOUS les bons parieurs (y compris ceux qui n'ont
+  // pas pronostiqué la finale, donc absents du recalcul ci-dessus). Idempotent.
   if (justFinished || opts.force) {
     await settleChampionBonus().catch((e) =>
       console.error("[champion] ignoré:", e instanceof Error ? e.message : e)
