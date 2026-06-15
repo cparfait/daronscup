@@ -5,6 +5,7 @@ import { maybeInit } from "@/lib/init";
 import { getFranceMatchToday } from "@/lib/data/queries";
 import { BottomNav } from "@/components/bottom-nav";
 import { PushAutoEnroll } from "@/components/push-auto-enroll";
+import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { FranceMatchBanner } from "@/components/france-match-banner";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,7 @@ export default async function AppLayout({
     >
       <main className="page-enter flex-1 px-4 pb-24 pt-4">
         <PushAutoEnroll vapidKey={vapidKey} />
+        <PresenceHeartbeat />
         {franceMatch && (
           <div className="mb-4">
             <FranceMatchBanner match={franceMatch} />

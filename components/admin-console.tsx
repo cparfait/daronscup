@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -47,6 +47,7 @@ export function AdminConsole({
 }) {
   return (
     <div className="grid gap-4">
+      <PresencePanel />
       <SyncPanel />
       <InvitePanel />
       <GroupsPanel groups={groups} />
@@ -60,6 +61,63 @@ export function AdminConsole({
       <CloseTournamentPanel />
       <ResetPanel />
     </div>
+  );
+}
+
+/* ─── Joueurs en ligne (présence, auto-actualisé) ─── */
+function PresencePanel() {
+  const [data, setData] = useState<{ count: number; users: string[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/presence");
+      if (res.ok) setData(await res.json());
+    } catch {
+      /* best-effort */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 20_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">🟢 Joueurs en ligne</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Actifs dans les 5 dernières minutes — pratique pour pousser une mise à
+          jour quand peu de monde joue.
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="font-[family-name:var(--font-display)] text-3xl font-bold tabular-nums text-[var(--color-pitch-bright)]">
+            {data?.count ?? "—"}
+          </span>
+          <span className="text-sm text-[var(--color-muted)]">en ligne</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+            className="ml-auto"
+            aria-label="Rafraîchir"
+          >
+            <RefreshCw className={loading ? "animate-spin" : ""} />
+          </Button>
+        </div>
+        {data && data.users.length > 0 && (
+          <p className="mt-2 text-xs text-[var(--color-muted)]">
+            {data.users.join(", ")}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

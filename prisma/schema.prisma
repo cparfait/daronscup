@@ -28,6 +28,7 @@ model User {
   role          Role         @default(USER)
   banned        Boolean      @default(false)
   createdAt     DateTime     @default(now())
+  lastSeenAt    DateTime? // présence : dernier heartbeat (compte « en ligne »)
 
   predictions   Prediction[]
   messages      Message[]
