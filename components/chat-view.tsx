@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, SmilePlus, Pin, PinOff, Trash2 } from "lucide-react";
+import { Send, SmilePlus, Pin, PinOff, Trash2, Eye } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { GroupSwitcher } from "@/components/group-switcher";
@@ -16,7 +16,8 @@ type ChatMsg = {
   user: string;
   text: string;
   pinned: boolean;
-  isSystem?: boolean; // récap auto → rendu en bandeau centré
+  isSystem?: boolean; // récap auto / annonce admin → rendu en bandeau centré
+  systemKind?: string | null; // "RECAP" | "ADMIN" — pilote le libellé du bandeau
   timestamp: string; // ISO
   reactions: Reaction[];
 };
@@ -24,9 +25,11 @@ type ChatMsg = {
 type Props = {
   currentUser: { id: string; name: string; isAdmin: boolean };
   initial: ChatMsg[];
-  groups: { id: string; name: string }[];
+  groups: { id: string; name: string; isMember?: boolean }[];
   activeGroupId: string;
   groupName: string;
+  /** true = admin consultant un groupe dont il n'est pas membre (pas d'écriture). */
+  readOnly?: boolean;
 };
 
 function formatTime(iso: string): string {
@@ -48,6 +51,7 @@ export function ChatView({
   groups,
   activeGroupId,
   groupName,
+  readOnly = false,
 }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>(initial);
   const [input, setInput] = useState("");
@@ -117,6 +121,7 @@ export function ChatView({
   }
 
   async function handleReact(id: string, emoji: string) {
+    if (readOnly) return; // admin en consultation : pas d'écriture
     setPickerFor(null);
     // Toggle optimiste de la réaction.
     setMessages((msgs) =>
@@ -150,6 +155,7 @@ export function ChatView({
   }
 
   async function handleSend() {
+    if (readOnly) return;
     const text = input.trim();
     if (!text || sending) return;
     setSending(true);
@@ -195,15 +201,28 @@ export function ChatView({
         )}
 
         {messages.map((msg, i) => {
-          // Récap auto (bot système) → bandeau centré, distinct des bulles.
+          // Récap auto / annonce admin (bot système) → bandeau centré.
           if (msg.isSystem) {
+            const isAnnounce = msg.systemKind === "ADMIN";
             return (
               <div key={msg.id} className="my-1 flex justify-center">
-                <Card className="glass max-w-[92%] border-[var(--color-gold)]/25 bg-[var(--color-gold)]/[0.04] px-4 py-3">
+                <Card
+                  className={`glass max-w-[92%] px-4 py-3 ${
+                    isAnnounce
+                      ? "border-[var(--color-pitch-bright)]/30 bg-[var(--color-pitch)]/[0.06]"
+                      : "border-[var(--color-gold)]/25 bg-[var(--color-gold)]/[0.04]"
+                  }`}
+                >
                   <div className="mb-1.5 flex items-center justify-center gap-1.5">
-                    <span className="text-sm">⚽</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-gold)]">
-                      Récap du match
+                    <span className="text-sm">{isAnnounce ? "📢" : "⚽"}</span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-widest ${
+                        isAnnounce
+                          ? "text-[var(--color-pitch-bright)]"
+                          : "text-[var(--color-gold)]"
+                      }`}
+                    >
+                      {isAnnounce ? "Annonce DaronsFC" : "Récap du match"}
                     </span>
                   </div>
                   <p className="whitespace-pre-line text-center text-sm leading-relaxed text-[var(--color-cream)]">
@@ -390,31 +409,40 @@ export function ChatView({
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="glass mt-3 flex items-center gap-2 rounded-2xl border border-[var(--color-border-subtle)] px-3 py-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder="Écris ton message..."
-          className="h-9 flex-1 bg-transparent text-sm text-[var(--color-cream)] placeholder:text-[var(--color-muted)] focus:outline-none"
-        />
+      {/* Input — ou bannière lecture seule pour un admin non-membre */}
+      {readOnly ? (
+        <div className="glass mt-3 flex items-center justify-center gap-2 rounded-2xl border border-[var(--color-border-subtle)] px-3 py-2.5 text-xs text-[var(--color-muted)]">
+          <Eye className="size-3.5 shrink-0 text-[var(--color-pitch-bright)]" />
+          <span>
+            Lecture seule — tu consultes ce groupe en tant qu&apos;admin (non membre).
+          </span>
+        </div>
+      ) : (
+        <div className="glass mt-3 flex items-center gap-2 rounded-2xl border border-[var(--color-border-subtle)] px-3 py-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Écris ton message..."
+            className="h-9 flex-1 bg-transparent text-sm text-[var(--color-cream)] placeholder:text-[var(--color-muted)] focus:outline-none"
+          />
 
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={!input.trim() || sending}
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)] text-white transition-all duration-200 hover:bg-[var(--color-pitch-bright)] disabled:opacity-30 disabled:hover:bg-[var(--color-pitch)]"
-        >
-          <Send className="size-4" />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim() || sending}
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)] text-white transition-all duration-200 hover:bg-[var(--color-pitch-bright)] disabled:opacity-30 disabled:hover:bg-[var(--color-pitch)]"
+          >
+            <Send className="size-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

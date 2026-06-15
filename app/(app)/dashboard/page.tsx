@@ -23,7 +23,7 @@ import {
 } from "@/lib/data/queries";
 import { ChampionPickCard } from "@/components/champion-pick-card";
 import {
-  getMyGroups,
+  getSwitchableGroups,
   getGroupMemberIds,
   requireActiveGroup,
 } from "@/lib/groups";
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   // Groupe actif (redirige vers /groups si l'utilisateur n'en a aucun).
   const activeGroup = await requireActiveGroup(userId);
   const [myGroups, memberIds] = await Promise.all([
-    getMyGroups(userId),
+    getSwitchableGroups(userId, session.user.role === "ADMIN"),
     getGroupMemberIds(activeGroup.id),
   ]);
 

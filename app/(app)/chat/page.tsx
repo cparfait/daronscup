@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ChatView } from "@/components/chat-view";
-import { getMyGroups, requireActiveGroup } from "@/lib/groups";
+import { getSwitchableGroups, requireActiveGroup } from "@/lib/groups";
 
 export const metadata = { title: "Tchat · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ type ChatMsg = {
   text: string;
   pinned: boolean;
   isSystem: boolean;
+  systemKind: string | null;
   timestamp: string;
   reactions: { emoji: string; count: number; mine: boolean }[];
 };
@@ -29,7 +30,7 @@ export default async function ChatPage() {
   };
 
   const activeGroup = await requireActiveGroup(userId);
-  const myGroups = await getMyGroups(userId);
+  const myGroups = await getSwitchableGroups(userId, currentUser.isAdmin);
 
   let initial: ChatMsg[] = [];
   try {
@@ -61,6 +62,7 @@ export default async function ChatPage() {
         text: m.content,
         pinned: m.pinned,
         isSystem: m.isSystem,
+        systemKind: m.systemKind,
         timestamp: m.createdAt.toISOString(),
         reactions: [...map.values()],
       };
@@ -74,6 +76,7 @@ export default async function ChatPage() {
       groups={myGroups}
       activeGroupId={activeGroup.id}
       groupName={activeGroup.name}
+      readOnly={activeGroup.readOnly}
     />
   );
 }

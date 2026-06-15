@@ -19,7 +19,12 @@ export type GroupBrief = {
   token: string;
   memberCount: number;
   isOwner: boolean;
+  /** false = l'utilisateur n'est pas membre (admin en consultation). */
+  isMember: boolean;
 };
+
+/** Groupe actif + indicateur de lecture seule (admin sur un groupe non-membre). */
+export type ActiveGroup = GroupBrief & { readOnly: boolean };
 
 /** Génère un token d'invitation de groupe (URL-safe). */
 export function newGroupToken(): string {
@@ -42,6 +47,7 @@ export async function getMyGroups(userId: string): Promise<GroupBrief[]> {
       token: m.group.token,
       memberCount: m.group._count.members,
       isOwner: m.role === "OWNER",
+      isMember: true,
     }));
   } catch {
     return [];
@@ -49,22 +55,87 @@ export async function getMyGroups(userId: string): Promise<GroupBrief[]> {
 }
 
 /**
+ * Groupes proposables dans le sélecteur. Pour un ADMIN : tous les groupes (ceux
+ * dont il n'est pas membre sont marqués `isMember:false` → parcourus en lecture
+ * seule). Pour un membre normal : uniquement ses groupes.
+ */
+export async function getSwitchableGroups(
+  userId: string,
+  isAdmin: boolean
+): Promise<GroupBrief[]> {
+  const mine = await getMyGroups(userId);
+  if (!isAdmin) return mine;
+  try {
+    const all = await prisma.group.findMany({
+      include: { _count: { select: { members: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    const mineIds = new Set(mine.map((g) => g.id));
+    const others = all
+      .filter((g) => !mineIds.has(g.id))
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        token: g.token,
+        memberCount: g._count.members,
+        isOwner: false,
+        isMember: false,
+      }));
+    return [...mine, ...others];
+  } catch {
+    return mine;
+  }
+}
+
+/**
  * Groupe actif de l'utilisateur : valeur du cookie si l'utilisateur en est
  * membre, sinon son premier groupe, sinon null (aucun groupe).
  */
-export async function getActiveGroup(userId: string): Promise<GroupBrief | null> {
+export async function getActiveGroup(userId: string): Promise<ActiveGroup | null> {
   const groups = await getMyGroups(userId);
-  if (groups.length === 0) return null;
   const jar = await cookies();
   const wanted = jar.get(GROUP_COOKIE)?.value;
-  return groups.find((g) => g.id === wanted) ?? groups[0]!;
+
+  // Cas normal : le groupe demandé fait partie des siens.
+  const mine = groups.find((g) => g.id === wanted);
+  if (mine) return { ...mine, readOnly: false };
+
+  // Admin pointant vers un groupe dont il n'est pas membre → consultation
+  // en lecture seule (parcours « comme un membre », sans pouvoir écrire).
+  if (wanted) {
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (me?.role === "ADMIN") {
+      const g = await prisma.group.findUnique({
+        where: { id: wanted },
+        include: { _count: { select: { members: true } } },
+      });
+      if (g) {
+        return {
+          id: g.id,
+          name: g.name,
+          token: g.token,
+          memberCount: g._count.members,
+          isOwner: false,
+          isMember: false,
+          readOnly: true,
+        };
+      }
+    }
+  }
+
+  // Repli : premier groupe du membre, ou aucun groupe.
+  if (groups.length === 0) return null;
+  return { ...groups[0]!, readOnly: false };
 }
 
 /**
  * Renvoie le groupe actif, ou redirige vers `/groups` si l'utilisateur n'a
  * encore aucun groupe (à appeler depuis les pages scopées par groupe).
  */
-export async function requireActiveGroup(userId: string): Promise<GroupBrief> {
+export async function requireActiveGroup(userId: string): Promise<ActiveGroup> {
   const active = await getActiveGroup(userId);
   if (!active) redirect("/groups");
   return active;

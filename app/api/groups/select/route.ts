@@ -22,7 +22,18 @@ export async function POST(req: Request) {
     where: { groupId_userId: { groupId: parsed.data.groupId, userId: session.user.id } },
   });
   if (!member) {
-    return NextResponse.json({ error: "Tu n'es pas membre de ce groupe." }, { status: 403 });
+    // Un admin peut consulter n'importe quel groupe (lecture seule) ; les
+    // autres doivent en être membres.
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Tu n'es pas membre de ce groupe." }, { status: 403 });
+    }
+    const exists = await prisma.group.findUnique({
+      where: { id: parsed.data.groupId },
+      select: { id: true },
+    });
+    if (!exists) {
+      return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
+    }
   }
 
   const jar = await cookies();

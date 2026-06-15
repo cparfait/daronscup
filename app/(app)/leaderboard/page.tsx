@@ -10,7 +10,7 @@ import { GroupSwitcher } from "@/components/group-switcher";
 import { cn } from "@/lib/utils";
 import { getLiveLeaderboard } from "@/lib/data/queries";
 import {
-  getMyGroups,
+  getSwitchableGroups,
   getGroupMemberIds,
   requireActiveGroup,
 } from "@/lib/groups";
@@ -27,7 +27,7 @@ export default async function LeaderboardPage() {
 
   const activeGroup = await requireActiveGroup(userId);
   const [myGroups, memberIds] = await Promise.all([
-    getMyGroups(userId),
+    getSwitchableGroups(userId, session.user.role === "ADMIN"),
     getGroupMemberIds(activeGroup.id),
   ]);
 

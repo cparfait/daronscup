@@ -51,6 +51,7 @@ export async function GET(req: Request) {
         text: m.content,
         pinned: m.pinned,
         isSystem: m.isSystem,
+        systemKind: m.systemKind,
         timestamp: m.createdAt.toISOString(),
         reactions: aggregateReactions(m.reactions, meId),
       }))
@@ -114,6 +115,12 @@ export async function POST(req: Request) {
     if (!active) {
       return NextResponse.json({ error: "Aucun groupe actif" }, { status: 400 });
     }
+    if (active.readOnly) {
+      return NextResponse.json(
+        { error: "Lecture seule : tu n'es pas membre de ce groupe." },
+        { status: 403 }
+      );
+    }
     const { content } = await req.json();
     const text = (content ?? "").trim();
     if (!text) {
@@ -149,6 +156,7 @@ export async function POST(req: Request) {
       text: msg.content,
       pinned: msg.pinned,
       isSystem: msg.isSystem,
+      systemKind: msg.systemKind,
       timestamp: msg.createdAt.toISOString(),
       reactions: [],
     });

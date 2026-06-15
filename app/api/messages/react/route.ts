@@ -27,6 +27,24 @@ export async function POST(req: Request) {
   const { messageId, emoji } = parsed.data;
   const userId = session.user.id;
 
+  // Lecture seule : on ne réagit que dans un groupe dont on est membre (un admin
+  // qui consulte un autre groupe ne doit pas pouvoir y écrire).
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: { groupId: true },
+  });
+  if (!message) {
+    return NextResponse.json({ error: "Message introuvable" }, { status: 404 });
+  }
+  if (message.groupId) {
+    const member = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId: message.groupId, userId } },
+    });
+    if (!member) {
+      return NextResponse.json({ error: "Lecture seule." }, { status: 403 });
+    }
+  }
+
   const existing = await prisma.reaction.findUnique({
     where: { messageId_userId_emoji: { messageId, userId, emoji } },
   });

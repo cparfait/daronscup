@@ -53,6 +53,7 @@ export function AdminConsole({
       <ImportPredictionPanel users={users} matches={allMatches} predictions={predictions} />
       <ManualScorePanel matches={matches} />
       <OddsPanel matches={matches} />
+      <BroadcastPanel />
       <RescorePanel />
       <ChampionPanel teams={championTeams} current={championOverride} />
       <UsersPanel users={users} currentUserId={currentUserId} />
@@ -808,6 +809,82 @@ function OddsPanel({ matches }: { matches: AdminMatchResult[] }) {
           </div>
         )}
 
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Annonce admin : message « DaronsFC » dans tous les tchats ─── */
+function BroadcastPanel() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+  const [text, setText] = useState("");
+
+  const send = () =>
+    start(async () => {
+      const content = text.trim();
+      if (!content) {
+        flash("Message vide.", false);
+        return;
+      }
+      if (
+        !confirm(
+          `Envoyer cette annonce dans le tchat de TOUS les groupes ?\n\n« ${content.slice(0, 140)} »`
+        )
+      )
+        return;
+      try {
+        const res = await fetch("/api/admin/broadcast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(
+          `✓ Annonce envoyée à ${data.groups} groupe(s) · ${data.users} joueur(s) notifié(s).`,
+          true
+        );
+        setText("");
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">📢 Annonce à tous les groupes</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Poste un message « DaronsFC » en bandeau dans le tchat de chaque groupe
+          (mise à jour, info…) et notifie les joueurs par push.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={1000}
+          rows={3}
+          placeholder="Ex. Mise à jour : les cotes sont maintenant affichées sur chaque match ⚽"
+          className="mb-2 w-full resize-none rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3 text-sm text-[var(--color-cream)] outline-none focus:border-[var(--color-pitch)]"
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={send}
+          disabled={pending || !text.trim()}
+        >
+          {pending ? <Loader2 className="animate-spin" /> : <MessageSquare />}
+          Envoyer l&apos;annonce
+        </Button>
         {msg && (
           <p
             className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}

@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, ChevronDown, Check, Settings2, Loader2 } from "lucide-react";
+import { Users, ChevronDown, Check, Settings2, Loader2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Group = { id: string; name: string };
+type Group = { id: string; name: string; isMember?: boolean };
 
 /** Sélecteur de groupe actif, affiché dans l'en-tête des pages scopées. */
 export function GroupSwitcher({
@@ -84,6 +84,14 @@ export function GroupSwitcher({
                       <Check className="size-4" />
                     </span>
                     <span className="truncate">{g.name}</span>
+                    {g.isMember === false && (
+                      <span
+                        title="Lecture seule (admin)"
+                        className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-medium text-[var(--color-muted)]"
+                      >
+                        <Eye className="size-3.5" />
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
