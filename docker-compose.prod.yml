@@ -18,6 +18,10 @@ services:
       # API foot
       FOOTBALL_DATA_TOKEN:       "TON_TOKEN_FOOTBALL_DATA"
       FOOTBALL_DATA_COMPETITION: "WC"
+      # Cotes (the-odds-api.com) — sans clé, barème classique
+      ODDS_API_KEY:   ""
+      ODDS_API_SPORT: "soccer_fifa_world_cup"
+      ODDS_API_REGION: "eu"
     networks:
       - daronsfc_net   # réseau partagé avec daronsfc_db
       - proxy_net      # réseau de ton reverse proxy (NPM / Traefik)

@@ -26,6 +26,8 @@
 #   AUTH_GOOGLE_ID       = (ton Google Client ID)
 #   AUTH_GOOGLE_SECRET   = (ton Google Client Secret)
 #   FOOTBALL_DATA_TOKEN  = (ton token football-data.org)
+#   ODDS_API_KEY         = (ta clé the-odds-api.com, sinon barème classique)
+#   ODDS_API_SPORT       = soccer_fifa_world_cup  ← clé sport The Odds API
 #   POSTGRES_PASSWORD    = (mot de passe sécurisé)
 #   ADMIN_EMAIL          = admin@daronsfc.fr  ← email du compte admin
 #   ADMIN_PASSWORD       = (mot de passe admin, créé au 1er démarrage)
@@ -90,6 +92,9 @@ services:
       FOOTBALL_DATA_COMPETITION: "${FOOTBALL_DATA_COMPETITION:-WC}"
       SYNC_LIVE_SECONDS: "${SYNC_LIVE_SECONDS:-90}"
       SYNC_IDLE_MINUTES: "${SYNC_IDLE_MINUTES:-30}"
+      ODDS_API_KEY: "${ODDS_API_KEY:-}"
+      ODDS_API_SPORT: "${ODDS_API_SPORT:-soccer_fifa_world_cup}"
+      ODDS_API_REGION: "${ODDS_API_REGION:-eu}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@daronsfc.fr}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: "${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}"
