@@ -32,10 +32,9 @@ Pas de données bidon : les matchs et scores viennent en direct de l'API **footb
 - 👥 **Groupes** — crée ta bande via un lien d'invitation, chacun son classement.
 - 💬 **Tchat de groupe** — messages, réactions emoji, épinglage (admin), notifications push.
 - 🤖 **Récaps automatiques** — après chaque match, un bandeau récap tombe dans le tchat : podium, meilleurs pronos, jokers gagnés/grillés, changement de leader.
-- ⏰ **Rappels** — un petit coup de coude ~1h avant le coup d'envoi pour les retardataires qui ont oublié de pronostiquer.
 - 🎖️ **Badges** — 10 hauts faits à débloquer (voir plus bas).
 - 🇫🇷 **Thème tricolore** — l'interface passe en **bleu nuit / bleu-blanc-rouge** les jours de match des Bleus. Allez les Bleus ! 💙🤍❤️
-- 📲 **Notifications push** — résultat tombé, tu t'es fait doubler, récap, rappel… directement sur ton téléphone.
+- 📲 **Notifications push** — résultat tombé, tu t'es fait doubler, récap… directement sur ton téléphone.
 - 📊 **Classements des poules** — le tableau officiel des groupes de la CdM.
 
 ## 🧮 Le barème
