@@ -440,11 +440,24 @@ export async function applyMatchResult(
           )
         : new Set<string>();
 
+      // Tous les pronos (matchs terminés) des joueurs concernés en UNE requête
+      // (au lieu d'un findMany par joueur dans la transaction → moins de verrous).
+      const allPreds = await tx.prediction.findMany({
+        where: {
+          userId: { in: userIds },
+          match: { result: { status: "FINISHED" } },
+        },
+        include: { match: { include: { result: true } } },
+      });
+      const predsByUser = new Map<string, typeof allPreds>();
+      for (const up of allPreds) {
+        const list = predsByUser.get(up.userId);
+        if (list) list.push(up);
+        else predsByUser.set(up.userId, [up]);
+      }
+
       for (const userId of userIds) {
-        const userPreds = await tx.prediction.findMany({
-          where: { userId, match: { result: { status: "FINISHED" } } },
-          include: { match: { include: { result: true } } },
-        });
+        const userPreds = predsByUser.get(userId) ?? [];
         let points = 0;
         let exactScores = 0;
         let correctResults = 0;
@@ -547,11 +560,21 @@ export async function settleChampionBonus(): Promise<void> {
   const pickers = await prisma.championPick.findMany({
     select: { userId: true, flag: true },
   });
+  // Tous les pronos des parieurs en UNE requête (au lieu d'un findMany / joueur).
+  const pickerIds = pickers.map((p) => p.userId);
+  const allPreds = await prisma.prediction.findMany({
+    where: { userId: { in: pickerIds }, match: { result: { status: "FINISHED" } } },
+    include: { match: { include: { result: true } } },
+  });
+  const predsByUser = new Map<string, typeof allPreds>();
+  for (const up of allPreds) {
+    const list = predsByUser.get(up.userId);
+    if (list) list.push(up);
+    else predsByUser.set(up.userId, [up]);
+  }
+
   for (const pick of pickers) {
-    const userPreds = await prisma.prediction.findMany({
-      where: { userId: pick.userId, match: { result: { status: "FINISHED" } } },
-      include: { match: { include: { result: true } } },
-    });
+    const userPreds = predsByUser.get(pick.userId) ?? [];
     let points = 0;
     let exactScores = 0;
     let correctResults = 0;
@@ -561,7 +584,12 @@ export async function settleChampionBonus(): Promise<void> {
       const b = computePoints(
         { homeScore: up.homeScore, awayScore: up.awayScore },
         { homeScore: r.homeScore, awayScore: r.awayScore },
-        up.joker
+        up.joker,
+        {
+          home: up.match.oddsHome,
+          draw: up.match.oddsDraw,
+          away: up.match.oddsAway,
+        }
       );
       points += b.points;
       if (b.exactScore) exactScores++;
