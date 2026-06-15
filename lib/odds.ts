@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────
-// Client « cotes » (The Odds API) — expérimental.
+// Client « cotes » (The Odds API).
 //
-// Récupère les cotes 1X2 (marché « h2h ») d'une compétition et en déduit des
-// probabilités implicites + un palier de difficulté façon MPP. Sert pour
-// l'instant la page de test /odds-test.
+// Récupère les cotes 1X2 (marché « h2h ») d'une compétition et en déduit les
+// points « bon résultat » (resultPoints / outcomeResultPoints) du barème façon
+// MPP. La capture vers la base (snapshot) vit dans lib/odds-sync.
 //
-// Clé gratuite : https://the-odds-api.com (500 req/mois). Sans clé, l'appelant
-// retombe sur SAMPLE_ODDS pour visualiser le rendu.
+// Clé gratuite : https://the-odds-api.com (500 req/mois). Sans clé,
+// fetchLiveOdds renvoie null → le scoring retombe sur le barème classique.
 // ─────────────────────────────────────────────
 
 const BASE_URL = "https://api.the-odds-api.com/v4";
@@ -87,26 +87,6 @@ export async function fetchLiveOdds(): Promise<OddsMatch[] | null> {
 }
 
 /**
- * Probabilités implicites (en %) déduites des cotes, normalisées pour retirer
- * la marge du bookmaker (« vig ») : p_i = (1/cote_i) / Σ(1/cote).
- */
-export function impliedProbabilities(m: OddsMatch): {
-  home: number;
-  draw: number;
-  away: number;
-} {
-  const rHome = 1 / m.oddsHome;
-  const rDraw = 1 / m.oddsDraw;
-  const rAway = 1 / m.oddsAway;
-  const total = rHome + rDraw + rAway;
-  return {
-    home: (rHome / total) * 100,
-    draw: (rDraw / total) * 100,
-    away: (rAway / total) * 100,
-  };
-}
-
-/**
  * Points pour un BON RÉSULTAT selon la proba implicite de l'issue choisie.
  * Courbe douce bornée ~1–6 : plus l'issue est improbable, plus ça rapporte.
  *   points = 1 + 5 × (1 − proba), arrondi.
@@ -149,43 +129,3 @@ export function outcomeResultPoints(
     outcome === 1 ? rHome / total : outcome === 0 ? rDraw / total : rAway / total;
   return resultPoints(p * 100);
 }
-
-/** Jeu d'exemple (sans clé API) — quelques affiches Coupe du Monde. */
-export const SAMPLE_ODDS: OddsMatch[] = [
-  {
-    home: "France",
-    away: "Norway",
-    commenceTime: "2026-06-16T19:00:00Z",
-    oddsHome: 1.4,
-    oddsDraw: 4.8,
-    oddsAway: 7.5,
-    bookmaker: "Exemple",
-  },
-  {
-    home: "Brazil",
-    away: "Croatia",
-    commenceTime: "2026-06-17T16:00:00Z",
-    oddsHome: 1.85,
-    oddsDraw: 3.6,
-    oddsAway: 4.2,
-    bookmaker: "Exemple",
-  },
-  {
-    home: "Japan",
-    away: "Spain",
-    commenceTime: "2026-06-18T18:00:00Z",
-    oddsHome: 6.0,
-    oddsDraw: 4.0,
-    oddsAway: 1.55,
-    bookmaker: "Exemple",
-  },
-  {
-    home: "England",
-    away: "Argentina",
-    commenceTime: "2026-06-19T20:00:00Z",
-    oddsHome: 2.7,
-    oddsDraw: 3.2,
-    oddsAway: 2.6,
-    bookmaker: "Exemple",
-  },
-];
