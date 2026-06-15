@@ -149,7 +149,7 @@ model Message {
   content   String
   pinned    Boolean    @default(false)
   isSystem  Boolean    @default(false) // message auto → rendu en bandeau
-  systemKind String? // "RECAP" | "REMINDER" — distingue les messages auto
+  systemKind String? // "RECAP" — distingue les messages auto
   matchId   String? // message rattaché à un match → idempotence (1 / match / groupe / kind)
   createdAt DateTime   @default(now())
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)

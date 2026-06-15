@@ -10,7 +10,7 @@ import { prisma } from "./prisma";
 import { countryCode } from "./flags";
 import { computePoints, CHAMPION_BONUS } from "./scoring";
 import { compareRanked } from "./ranking";
-import { postMatchRecaps, postKickoffReminders } from "./match-recap";
+import { postMatchRecaps } from "./match-recap";
 import type { Stage } from "./data/matches";
 
 const BASE_URL = "https://api.football-data.org/v4";
@@ -257,11 +257,6 @@ async function runSyncMatches(
       });
     }
   }
-
-  // Rappels « pense à pronostiquer » pour les matchs imminents (idempotent).
-  await postKickoffReminders().catch((e) =>
-    console.error("[reminder] ignoré:", e instanceof Error ? e.message : e)
-  );
 
   return { matches: data.matches.length, results };
 }
