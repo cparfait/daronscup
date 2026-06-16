@@ -12,7 +12,7 @@ const BADGES = [
   { key: "sniper", label: "Sniper", emoji: "🎯", description: "10 scores exacts au total." },
   { key: "demi_centurion", label: "Cinquantenaire", emoji: "🎖️", description: "50 points au total." },
   { key: "centurion", label: "Centurion", emoji: "💯", description: "100 points au total." },
-  { key: "daronissime", label: "Le Daronissime", emoji: "👑", description: "1ʳᵉ place en fin de tournoi." },
+  { key: "daronissime", label: "Le Daronissime", emoji: "👑", description: "1ʳᵉ place de son groupe en fin de tournoi." },
 ];
 
 /**

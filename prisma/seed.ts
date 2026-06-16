@@ -14,7 +14,7 @@ const BADGES = [
     key: "daronissime",
     label: "Le Daronissime",
     emoji: "👑",
-    description: "1ʳᵉ place en fin de tournoi.",
+    description: "1ʳᵉ place de son groupe en fin de tournoi.",
   },
   {
     key: "meme_pas_mal",

@@ -66,7 +66,7 @@ Les points d'un **bon résultat** suivent la difficulté du match : **`R`** vaut
 | 🎯 Sniper | 10 scores exacts au total |
 | 🎖️ Cinquantenaire | 50 points au total |
 | 💯 Centurion | 100 points au total |
-| 👑 Le Daronissime | 1ʳᵉ place en fin de tournoi |
+| 👑 Le Daronissime | 1ʳᵉ place de son groupe en fin de tournoi |
 
 ## 🛠️ Stack technique
 

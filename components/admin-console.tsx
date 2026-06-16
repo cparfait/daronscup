@@ -190,7 +190,7 @@ function ChampionPanel({
           <select
             value={team}
             onChange={(e) => setTeam(e.target.value)}
-            className="flex-1 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none focus:border-[var(--color-pitch)]"
+            className="min-w-0 flex-1 truncate rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none focus:border-[var(--color-pitch)]"
           >
             {teams.map((t) => (
               <option key={t.team} value={t.team}>
@@ -198,7 +198,7 @@ function ChampionPanel({
               </option>
             ))}
           </select>
-          <Button onClick={setChampion} disabled={pending || !team}>
+          <Button onClick={setChampion} disabled={pending || !team} className="shrink-0">
             {pending ? <Loader2 className="size-4 animate-spin" /> : "Désigner"}
           </Button>
         </div>
@@ -499,13 +499,23 @@ function CloseTournamentPanel() {
 
   const close = () =>
     start(async () => {
-      if (!confirm("Décerner le titre de Daronissime 👑 au leader du classement ?"))
+      if (
+        !confirm(
+          "Décerner le titre de Daronissime 👑 au leader de CHAQUE groupe (un vainqueur par groupe) ?"
+        )
+      )
         return;
       try {
         const res = await fetch("/api/admin/close-tournament", { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Erreur");
-        flash(`👑 Daronissime décerné à ${data.champion} !`, true);
+        const detail = (data.champions ?? [])
+          .map((c: { group: string; champion: string }) => `${c.group} → ${c.champion}`)
+          .join(" · ");
+        flash(
+          `👑 Daronissime décerné dans ${data.winners} groupe(s)${detail ? ` : ${detail}` : ""} !`,
+          true
+        );
         router.refresh();
       } catch (e) {
         flash(e instanceof Error ? e.message : "Erreur", false);
@@ -517,8 +527,8 @@ function CloseTournamentPanel() {
       <CardContent className="p-4">
         <CardTitle className="text-base">👑 Clôturer le tournoi</CardTitle>
         <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
-          Décerne le badge Daronissime au 1ᵉʳ du classement. À faire en fin de
-          Coupe du Monde.
+          Décerne le badge Daronissime au 1ᵉʳ du classement de chaque groupe
+          (un vainqueur par groupe). À faire en fin de Coupe du Monde.
         </p>
         <Button variant="gold" size="sm" onClick={close} disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : <Check />}
@@ -669,7 +679,7 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
             <select
               value={matchId}
               onChange={(e) => onSelect(e.target.value)}
-              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+              className="h-11 w-full min-w-0 truncate rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
             >
               {matches.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -843,7 +853,7 @@ function OddsPanel({ matches }: { matches: AdminMatchResult[] }) {
             <select
               value={matchId}
               onChange={(e) => onSelect(e.target.value)}
-              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+              className="h-11 w-full min-w-0 truncate rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
             >
               {matches.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -1104,7 +1114,7 @@ function ImportPredictionPanel({
                 setAway("");
                 setJoker(false);
               }}
-              className="h-11 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
+              className="h-11 w-full min-w-0 truncate rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 text-sm text-[var(--color-cream)]"
             >
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
