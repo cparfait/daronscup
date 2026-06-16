@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, SmilePlus, Pin, PinOff, Trash2, Eye } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
+import { Send, SmilePlus, Pin, PinOff, Eye, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { GroupSwitcher } from "@/components/group-switcher";
@@ -57,7 +57,9 @@ export function ChatView({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [nativePickerFor, setNativePickerFor] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const emojiInputRef = useRef<HTMLInputElement>(null);
   const lastRef = useRef<string>(
     initial.length > 0
       ? (initial[initial.length - 1]?.timestamp ?? new Date(0).toISOString())
@@ -152,6 +154,34 @@ export function ChatView({
         body: JSON.stringify({ messageId: id, emoji }),
       });
     } catch {}
+  }
+
+  // Ouvre le sélecteur d'emojis natif de l'OS : on focus un champ caché, ce qui
+  // déclenche le clavier emoji sur mobile (et permet Win+. / Cmd+Ctrl+Espace sur desktop).
+  function openNativePicker(id: string) {
+    if (readOnly) return;
+    setNativePickerFor(id);
+    requestAnimationFrame(() => emojiInputRef.current?.focus());
+  }
+
+  // Récupère le dernier emoji saisi dans le champ caché et l'envoie comme réaction.
+  function handleNativeEmoji(e: ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    e.target.value = "";
+    const id = nativePickerFor;
+    setNativePickerFor(null);
+    emojiInputRef.current?.blur();
+    if (!id || !value) return;
+    let emoji = value;
+    try {
+      const parts = [
+        ...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
+          value
+        ),
+      ];
+      emoji = parts[parts.length - 1]?.segment ?? value;
+    } catch {}
+    handleReact(id, emoji);
   }
 
   async function handleSend() {
@@ -277,6 +307,14 @@ export function ChatView({
                           {e}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => openNativePicker(msg.id)}
+                        title="Autre emoji…"
+                        className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-[var(--color-cream)] hover:scale-125 transition-transform"
+                      >
+                        <Plus className="size-4" />
+                      </button>
                     </div>
                   )}
                 </Card>
@@ -285,7 +323,6 @@ export function ChatView({
           }
 
           const isOwn = msg.userId === currentUser.id;
-          const canDelete = isOwn || currentUser.isAdmin;
 
           const actions = (
             <div className="flex shrink-0 flex-col items-center gap-1 self-center opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
@@ -309,16 +346,6 @@ export function ChatView({
                   ) : (
                     <Pin className="size-3.5" />
                   )}
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(msg.id)}
-                  title="Supprimer"
-                  className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-red-400"
-                >
-                  <Trash2 className="size-3.5" />
                 </button>
               )}
             </div>
@@ -400,6 +427,14 @@ export function ChatView({
                         {e}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => openNativePicker(msg.id)}
+                      title="Autre emoji…"
+                      className="flex size-7 items-center justify-center rounded-lg text-[var(--color-muted)] hover:text-[var(--color-cream)] hover:scale-125 transition-transform"
+                    >
+                      <Plus className="size-4" />
+                    </button>
                   </div>
                 )}
               </Card>
@@ -410,6 +445,18 @@ export function ChatView({
         })}
         <div ref={bottomRef} />
       </div>
+
+      {/* Champ invisible qui sert uniquement à ouvrir le sélecteur d'emojis natif de l'OS. */}
+      <input
+        ref={emojiInputRef}
+        type="text"
+        inputMode="text"
+        aria-hidden="true"
+        tabIndex={-1}
+        autoComplete="off"
+        onChange={handleNativeEmoji}
+        className="pointer-events-none fixed left-0 top-0 size-px border-0 bg-transparent p-0 opacity-0"
+      />
 
       {/* Input — ou bannière lecture seule pour un admin non-membre */}
       {readOnly ? (

@@ -3,11 +3,21 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const ALLOWED = ["👍", "😂", "🔥", "😮", "⚽", "💀"];
+// On accepte n'importe quel emoji de la liste officielle Unicode (pas seulement
+// une whitelist) : la chaîne ne doit contenir que des caractères emoji
+// (pictogramme + modificateurs/jointeurs) et comporter au moins un pictogramme.
+const EMOJI_ONLY = /^[\p{Emoji}\p{Emoji_Component}‍️]+$/u;
+// Au moins un vrai pictogramme ou un drapeau (sinon de simples chiffres « 1 » ou
+// « # » passeraient le filtre ci-dessus).
+const MEANINGFUL = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
 
 const schema = z.object({
   messageId: z.string().min(1),
-  emoji: z.string().refine((e) => ALLOWED.includes(e), "Emoji non autorisé"),
+  emoji: z
+    .string()
+    .min(1)
+    .max(40)
+    .refine((e) => EMOJI_ONLY.test(e) && MEANINGFUL.test(e), "Emoji invalide"),
 });
 
 /**
