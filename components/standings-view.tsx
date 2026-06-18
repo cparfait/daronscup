@@ -4,13 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
+import { GroupMatchesList } from "@/components/group-matches-list";
 import { cn } from "@/lib/utils";
-import type { StandingTeam } from "@/lib/data/matches";
+import type { Match, StandingTeam } from "@/lib/data/matches";
 
 export function StandingsView({
   groups,
+  matchesByGroup,
 }: {
   groups: Record<string, StandingTeam[]>;
+  matchesByGroup?: Record<string, Match[]>;
 }) {
   const groupKeys = Object.keys(groups).sort();
   const [active, setActive] = useState<string>(groupKeys[0] ?? "A");
@@ -65,6 +68,11 @@ export function StandingsView({
         teams={groups[active] ?? []}
         highlight={targetTeam}
       />
+
+      {/* ── Matchs du groupe (résultats passés + à venir) ── */}
+      {matchesByGroup && matchesByGroup[active] && (
+        <GroupMatchesList matches={matchesByGroup[active]} />
+      )}
     </>
   );
 }
