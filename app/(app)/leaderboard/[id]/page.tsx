@@ -160,7 +160,7 @@ export default async function ComparePage({
             <Card key={row.match.id} className="p-3">
               {/* Match + score */}
               <div className="mb-2 flex items-center justify-center gap-2 border-b border-[var(--color-border-subtle)] pb-2 text-sm">
-                <Flag code={row.match.homeFlag} className="h-4 w-6" />
+                <Flag code={row.match.homeFlag} team={row.match.homeTeam} className="h-4 w-6" />
                 <span className="truncate font-medium">{row.match.homeTeam}</span>
                 <span
                   className={cn(
@@ -171,7 +171,7 @@ export default async function ComparePage({
                   {score ? `${score.homeScore} - ${score.awayScore}` : "vs"}
                 </span>
                 <span className="truncate font-medium">{row.match.awayTeam}</span>
-                <Flag code={row.match.awayFlag} className="h-4 w-6" />
+                <Flag code={row.match.awayFlag} team={row.match.awayTeam} className="h-4 w-6" />
                 {live && (
                   <Radio className="size-3 shrink-0 animate-pulse text-red-400" />
                 )}

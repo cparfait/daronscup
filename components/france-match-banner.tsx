@@ -28,7 +28,7 @@ export function FranceMatchBanner({ match }: { match: Match }) {
           <p className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
             <span>France</span>
             <span className="text-[var(--color-muted)]/70">vs</span>
-            <Flag code={opponentFlag} className="h-3 w-4" />
+            <Flag code={opponentFlag} team={opponent} className="h-3 w-4" />
             <span className="truncate">{opponent}</span>
           </p>
         </div>

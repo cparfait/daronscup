@@ -88,7 +88,7 @@ export default async function ChampionsPage() {
                 }
               >
                 <div className="flex items-center gap-3">
-                  <Flag code={p.flag} className="h-8 w-11 shrink-0 drop-shadow" />
+                  <Flag code={p.flag} team={p.team} className="h-8 w-11 shrink-0 drop-shadow" />
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-cream)]">
                       {p.team}

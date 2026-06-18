@@ -112,7 +112,7 @@ export default async function MatchDetailPage({
           <div className="flex items-center justify-center gap-4 sm:gap-8">
             {/* Home team */}
             <div className="flex flex-1 flex-col items-center gap-2">
-              <Flag code={match.homeFlag} className="h-14 w-20 drop-shadow-lg sm:h-16 sm:w-24" />
+              <Flag code={match.homeFlag} team={match.homeTeam} className="h-14 w-20 drop-shadow-lg sm:h-16 sm:w-24" />
               <span className="max-w-28 truncate font-[family-name:var(--font-display)] text-base font-bold sm:text-lg">
                 {match.homeTeam}
               </span>
@@ -148,7 +148,7 @@ export default async function MatchDetailPage({
 
             {/* Away team */}
             <div className="flex flex-1 flex-col items-center gap-2">
-              <Flag code={match.awayFlag} className="h-14 w-20 drop-shadow-lg sm:h-16 sm:w-24" />
+              <Flag code={match.awayFlag} team={match.awayTeam} className="h-14 w-20 drop-shadow-lg sm:h-16 sm:w-24" />
               <span className="max-w-28 truncate font-[family-name:var(--font-display)] text-base font-bold sm:text-lg">
                 {match.awayTeam}
               </span>

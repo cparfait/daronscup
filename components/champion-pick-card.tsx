@@ -42,7 +42,7 @@ export function ChampionPickCard({
               Ton champion du tournoi
             </p>
             <p className="flex items-center gap-2 font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-cream)]">
-              <Flag code={pick.flag} className="h-4 w-6" />
+              <Flag code={pick.flag} team={pick.team} className="h-4 w-6" />
               {pick.team}
             </p>
           </div>
@@ -151,7 +151,7 @@ export function ChampionPickCard({
             <div className="flex items-center gap-2">
               <span className="flex flex-1 items-center gap-2 text-sm text-[var(--color-muted)]">
                 Champion :
-                <Flag code={pending.flag} className="h-4 w-6" />
+                <Flag code={pending.flag} team={pending.team} className="h-4 w-6" />
                 <strong className="text-[var(--color-cream)]">{pending.team}</strong>
               </span>
               <button

@@ -279,7 +279,7 @@ export default async function ProfilePage() {
               >
                 {/* Match teams + flags */}
                 <div className="flex flex-1 items-center gap-2 min-w-0">
-                  <Flag code={match.homeFlag} className="h-4 w-6" />
+                  <Flag code={match.homeFlag} team={match.homeTeam} className="h-4 w-6" />
                   <span className="truncate text-sm font-medium">
                     {match.homeTeam}
                   </span>
@@ -287,7 +287,7 @@ export default async function ProfilePage() {
                   <span className="truncate text-sm font-medium">
                     {match.awayTeam}
                   </span>
-                  <Flag code={match.awayFlag} className="h-4 w-6" />
+                  <Flag code={match.awayFlag} team={match.awayTeam} className="h-4 w-6" />
                 </div>
 
                 {/* Predicted score */}

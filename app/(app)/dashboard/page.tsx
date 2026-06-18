@@ -233,7 +233,7 @@ export default async function DashboardPage() {
 
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
-                    <Flag code={featuredMatch.homeFlag} className="h-11 w-16 drop-shadow-lg" />
+                    <Flag code={featuredMatch.homeFlag} team={featuredMatch.homeTeam} className="h-11 w-16 drop-shadow-lg" />
                     <span className="font-[family-name:var(--font-display)] text-base font-bold">
                       {featuredMatch.homeTeam}
                     </span>
@@ -259,7 +259,7 @@ export default async function DashboardPage() {
                   )}
 
                   <div className="flex flex-1 flex-col items-center gap-1.5 text-center">
-                    <Flag code={featuredMatch.awayFlag} className="h-11 w-16 drop-shadow-lg" />
+                    <Flag code={featuredMatch.awayFlag} team={featuredMatch.awayTeam} className="h-11 w-16 drop-shadow-lg" />
                     <span className="font-[family-name:var(--font-display)] text-base font-bold">
                       {featuredMatch.awayTeam}
                     </span>

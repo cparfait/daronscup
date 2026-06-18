@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,19 @@ export function StandingsView({
 }) {
   const groupKeys = Object.keys(groups).sort();
   const [active, setActive] = useState<string>(groupKeys[0] ?? "A");
+
+  // Arrivée depuis un drapeau cliqué (`/standings?team=…`) : ouvre le groupe de
+  // l'équipe ciblée et la met en évidence.
+  const params = useSearchParams();
+  const targetTeam = params.get("team");
+  useEffect(() => {
+    if (!targetTeam) return;
+    const grp = groupKeys.find((k) =>
+      groups[k]?.some((t) => t.team === targetTeam)
+    );
+    if (grp) setActive(grp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetTeam]);
 
   if (groupKeys.length === 0) {
     return (
@@ -46,7 +60,11 @@ export function StandingsView({
       </div>
 
       {/* ── Group table ── */}
-      <GroupTable group={active} teams={groups[active] ?? []} />
+      <GroupTable
+        group={active}
+        teams={groups[active] ?? []}
+        highlight={targetTeam}
+      />
     </>
   );
 }
@@ -56,10 +74,21 @@ export function StandingsView({
 function GroupTable({
   group,
   teams,
+  highlight,
 }: {
   group: string;
   teams: StandingTeam[];
+  highlight?: string | null;
 }) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  // Fait défiler jusqu'à l'équipe mise en évidence (drapeau cliqué).
+  useEffect(() => {
+    if (highlight && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight, group]);
+
   return (
     <Card className="overflow-hidden">
       {/* Group header */}
@@ -84,10 +113,16 @@ function GroupTable({
         <tbody>
           {teams.map((t) => {
             const diff = t.bp - t.bc;
+            const isTarget = highlight === t.team;
             return (
               <tr
                 key={t.team}
-                className="border-t border-[var(--color-border-subtle)] transition-colors duration-150 hover:bg-[var(--color-surface-2)]"
+                ref={isTarget ? rowRef : undefined}
+                className={cn(
+                  "border-t border-[var(--color-border-subtle)] transition-colors duration-150 hover:bg-[var(--color-surface-2)]",
+                  isTarget &&
+                    "bg-[var(--color-pitch)]/15 ring-1 ring-inset ring-[var(--color-pitch-bright)]/40"
+                )}
               >
                 {/* Team name with flag */}
                 <td className="px-3 py-2.5 font-medium">

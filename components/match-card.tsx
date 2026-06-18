@@ -30,7 +30,7 @@ function TeamRow({
         align === "right" && "flex-row-reverse text-right"
       )}
     >
-      <Flag code={flag} className="h-5 w-7" />
+      <Flag code={flag} team={name} className="h-5 w-7" />
       <span className="truncate font-medium">{name}</span>
       {score !== undefined && (
         <span className="ml-auto font-[family-name:var(--font-display)] text-xl font-bold tabular-nums">

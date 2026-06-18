@@ -93,7 +93,7 @@ export default async function StatsPage() {
           {/* Équipe fétiche */}
           {stats.favoriteTeam && (
             <Card className="glass flex items-center gap-3 p-4">
-              <Flag code={stats.favoriteTeam.flag} className="h-8 w-12" />
+              <Flag code={stats.favoriteTeam.flag} team={stats.favoriteTeam.team} className="h-8 w-12" />
               <div className="flex-1">
                 <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
                   Ton équipe fétiche
@@ -115,7 +115,7 @@ export default async function StatsPage() {
                 Ton meilleur prono
               </p>
               <div className="flex items-center gap-2 text-sm">
-                <Flag code={stats.bestPrediction.homeFlag} className="h-4 w-6" />
+                <Flag code={stats.bestPrediction.homeFlag} team={stats.bestPrediction.homeTeam} className="h-4 w-6" />
                 <span className="truncate font-medium">
                   {stats.bestPrediction.homeTeam}
                 </span>
@@ -125,7 +125,7 @@ export default async function StatsPage() {
                 <span className="truncate font-medium">
                   {stats.bestPrediction.awayTeam}
                 </span>
-                <Flag code={stats.bestPrediction.awayFlag} className="h-4 w-6" />
+                <Flag code={stats.bestPrediction.awayFlag} team={stats.bestPrediction.awayTeam} className="h-4 w-6" />
                 <span className="ml-auto shrink-0 rounded-full bg-[var(--color-gold)]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">
                   +{stats.bestPrediction.points} pts
                 </span>
@@ -146,7 +146,7 @@ export default async function StatsPage() {
                   Ton pari pour le titre
                 </p>
                 <p className="flex items-center gap-2 font-[family-name:var(--font-display)] font-bold text-[var(--color-cream)]">
-                  <Flag code={stats.championPick.flag} className="h-4 w-6" />
+                  <Flag code={stats.championPick.flag} team={stats.championPick.team} className="h-4 w-6" />
                   {stats.championPick.team}
                 </p>
               </div>
