@@ -608,8 +608,11 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
   const [pending, start] = useTransition();
   const { msg, flash } = useFeedback();
   const [matchId, setMatchId] = useState(matches[0]?.id ?? "");
+  const [saved, setSaved] = useState(false);
   const selected = matches.find((m) => m.id === matchId);
-  // Pré-remplit avec le score déjà enregistré (cas correction d'un match fini).
+  // Un match dont le résultat est déjà enregistré est verrouillé : pas de
+  // correction (ni commencé, ni fini). Seule la 1re saisie est possible.
+  const locked = selected != null && selected.homeScore != null;
   const [home, setHome] = useState(
     selected?.homeScore != null ? String(selected.homeScore) : ""
   );
@@ -619,55 +622,53 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
 
   const onSelect = (id: string) => {
     setMatchId(id);
+    setSaved(false);
     const m = matches.find((x) => x.id === id);
     setHome(m?.homeScore != null ? String(m.homeScore) : "");
     setAway(m?.awayScore != null ? String(m.awayScore) : "");
   };
 
-  const submit = () =>
-    start(async () => {
-      if (!matchId || home === "" || away === "") {
-        flash("Sélectionne un match et saisis les deux scores.", false);
-        return;
-      }
-      if (
-        selected?.finished &&
-        !confirm(
-          "Ce match est déjà terminé. Corriger le score RECALCULE les points de tous les joueurs concernés. Continuer ?"
-        )
-      )
-        return;
-      try {
-        const res = await fetch("/api/admin/result", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            matchId,
-            homeScore: Number(home),
-            awayScore: Number(away),
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Erreur");
-        flash(
-          selected?.finished
-            ? `✓ Score corrigé (${data.scored} pronos recalculés)`
-            : `✓ Résultat enregistré (${data.scored} pronos crédités)`,
-          true
-        );
-        router.refresh();
-      } catch (e) {
-        flash(e instanceof Error ? e.message : "Erreur", false);
-      }
-    });
+  /** Auto-enregistrement (anti-rebond) de la première saisie d'un résultat. */
+  useEffect(() => {
+    setSaved(false);
+    if (locked) return;
+    if (home === "" || away === "") return;
+    const h = Number(home);
+    const a = Number(away);
+    if (!Number.isInteger(h) || !Number.isInteger(a)) return;
+    if (h < 0 || a < 0 || h > 99 || a > 99) return;
+    const t = setTimeout(
+      () =>
+        start(async () => {
+          try {
+            const res = await fetch("/api/admin/result", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ matchId, homeScore: h, awayScore: a }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error ?? "Erreur");
+            setSaved(true);
+            flash(`✓ Résultat enregistré (${data.scored} pronos crédités)`, true);
+            router.refresh();
+          } catch (e) {
+            flash(e instanceof Error ? e.message : "Erreur", false);
+          }
+        }),
+      700
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [home, away, matchId, locked]);
 
   return (
     <Card>
       <CardContent className="p-4">
         <CardTitle className="text-base">📝 Score manuel</CardTitle>
         <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
-          Saisis un résultat si l&apos;API est en retard, ou corrige un match
-          déjà terminé (les points sont recalculés).
+          Saisis un résultat si l&apos;API est en retard : il s&apos;enregistre
+          automatiquement. Un match dont le résultat est déjà enregistré est
+          verrouillé (pas de correction).
         </p>
 
         {matches.length === 0 ? (
@@ -689,10 +690,9 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
               ))}
             </select>
 
-            {selected?.finished && (
+            {locked && (
               <p className="rounded-lg bg-[var(--color-gold)]/10 px-3 py-2 text-xs text-[var(--color-gold)]">
-                ⚠️ Match terminé — enregistrer recalcule les points de tous les
-                joueurs.
+                🔒 Résultat déjà enregistré — verrouillé (pas de correction).
               </p>
             )}
 
@@ -703,8 +703,9 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
                 max={99}
                 value={home}
                 onChange={(e) => setHome(e.target.value)}
+                disabled={locked}
                 placeholder="0"
-                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)] disabled:opacity-60"
               />
               <span className="text-xl font-bold text-[var(--color-muted)]">–</span>
               <input
@@ -713,15 +714,27 @@ function ManualScorePanel({ matches }: { matches: AdminMatchResult[] }) {
                 max={99}
                 value={away}
                 onChange={(e) => setAway(e.target.value)}
+                disabled={locked}
                 placeholder="0"
-                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)]"
+                className="h-14 w-16 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-center text-2xl font-bold text-[var(--color-cream)] disabled:opacity-60"
               />
             </div>
 
-            <Button variant="gold" size="sm" onClick={submit} disabled={pending}>
-              {pending ? <Loader2 className="animate-spin" /> : <Check />}
-              {selected?.finished ? "Corriger le résultat" : "Enregistrer le résultat"}
-            </Button>
+            {!locked && (
+              <p className="flex items-center justify-center gap-1.5 text-sm text-[var(--color-muted)]">
+                {pending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Enregistrement…
+                  </>
+                ) : saved ? (
+                  <span className="text-[var(--color-pitch-bright)]">
+                    ✓ Enregistré automatiquement
+                  </span>
+                ) : (
+                  "Le score s'enregistre tout seul"
+                )}
+              </p>
+            )}
           </div>
         )}
 
