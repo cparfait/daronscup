@@ -49,6 +49,54 @@ type MemberRow = {
   before: Rankable; // classement reconstitué avant ce match
 };
 
+/** Poste un message de correction quand le résultat d'un match FINISHED change. */
+export async function postMatchCorrection(
+  matchId: string,
+  old: { oldHome: number; oldAway: number }
+): Promise<void> {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: { result: true },
+  });
+  if (!match?.result) return;
+  const result = match.result;
+
+  const bot = await prisma.user.findUnique({
+    where: { email: SYSTEM_USER_EMAIL },
+    select: { id: true },
+  });
+  if (!bot) return;
+
+  const groups = await prisma.group.findMany({
+    select: { id: true, name: true, members: { select: { userId: true } } },
+  });
+
+  const content =
+    `😬 Oups, petite erreur ! Le score **${match.homeTeam}–${match.awayTeam}** a été corrigé : ` +
+    `**${result.homeScore}–${result.awayScore}** (et non ${old.oldHome}–${old.oldAway}). ` +
+    `Les points ont été recalculés.`;
+
+  for (const group of groups) {
+    if (group.members.length < 1) continue;
+    await prisma.message.create({
+      data: {
+        userId: bot.id,
+        groupId: group.id,
+        matchId,
+        isSystem: true,
+        systemKind: "ADMIN",
+        content,
+      },
+    });
+    const memberIds = group.members.map((m) => m.userId);
+    firePush(memberIds, {
+      title: `${group.name} · Correction`,
+      body: `😬 Score corrigé : ${match.homeTeam} ${result.homeScore}–${result.awayScore} ${match.awayTeam}`,
+      url: "/chat",
+    });
+  }
+}
+
 /** Poste le récap de ce match dans tous les groupes concernés (si pas déjà fait). */
 export async function postMatchRecaps(matchId: string): Promise<void> {
   const match = await prisma.match.findUnique({

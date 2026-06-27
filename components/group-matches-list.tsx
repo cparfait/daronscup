@@ -46,7 +46,8 @@ export function GroupMatchesList({ matches }: { matches: Match[] }) {
               <Link
                 href={`/matches/${m.id}`}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--color-surface-2)]",
+                  "flex items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--color-surface-2)]",
+                  finished && "bg-[var(--color-surface-2)]/50",
                   i < sorted.length - 1 &&
                     "border-b border-[var(--color-border-subtle)]"
                 )}
@@ -64,26 +65,27 @@ export function GroupMatchesList({ matches }: { matches: Match[] }) {
                       )}
                     >
                       {live && <span className="size-1.5 animate-pulse rounded-full bg-red-400" />}
-                      {finished ? "Fin" : "Live"}
+                      {finished ? "Terminé" : "Live"}
                     </span>
                   )}
                 </span>
 
-                {/* Équipes + score */}
-                <div className="flex flex-1 items-center justify-end gap-2">
+                {/* Équipe domicile (flag + nom), alignée à gauche */}
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Flag
                     code={m.homeFlag}
                     team={m.homeTeam}
                     className="h-3.5 w-5 shrink-0"
                   />
-                  <span className="truncate text-right font-medium">
+                  <span className="truncate text-left font-medium">
                     {m.homeTeam}
                   </span>
                 </div>
 
+                {/* Score */}
                 <span
                   className={cn(
-                    "shrink-0 font-[family-name:var(--font-display)] font-bold tabular-nums",
+                    "w-12 shrink-0 text-center font-[family-name:var(--font-display)] font-bold tabular-nums",
                     live
                       ? "text-red-400"
                       : finished
@@ -94,13 +96,14 @@ export function GroupMatchesList({ matches }: { matches: Match[] }) {
                   {score ? `${score.homeScore} - ${score.awayScore}` : "vs"}
                 </span>
 
-                <div className="flex flex-1 items-center justify-start gap-2">
-                  <span className="truncate font-medium">{m.awayTeam}</span>
+                {/* Équipe extérieure (flag + nom), alignée à gauche */}
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Flag
                     code={m.awayFlag}
                     team={m.awayTeam}
                     className="h-3.5 w-5 shrink-0"
                   />
+                  <span className="truncate text-left font-medium">{m.awayTeam}</span>
                 </div>
               </Link>
             </li>

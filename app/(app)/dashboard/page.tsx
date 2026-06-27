@@ -68,15 +68,26 @@ export default async function DashboardPage() {
 
   const myRank = leaderboard.find((u) => u.email === session.user?.email)?.rank;
 
-  // Match « à la une » : priorité au direct, sinon prochain match, sinon dernier joué.
+  // Match « à la une » : priorité au direct (LIVE en base), puis au match
+  // démarré sans result (coup d'envoi passé mais l'API n'a pas encore basculé
+  // en LIVE — évite de masquer le match en cours sur le hub), puis au prochain,
+  // puis au dernier joué.
   const liveMatch = matches.find((m) => m.live);
+  const ongoing = matches
+    .filter(
+      (m) =>
+        !m.result &&
+        !m.live &&
+        new Date(m.kickoffAt).getTime() <= now
+    )
+    .sort((a, b) => +new Date(b.kickoffAt) - +new Date(a.kickoffAt))[0];
   const upcoming = matches
     .filter((m) => new Date(m.kickoffAt).getTime() > now)
     .sort((a, b) => +new Date(a.kickoffAt) - +new Date(b.kickoffAt));
   const lastPlayed = matches
     .filter((m) => m.result)
     .sort((a, b) => +new Date(b.kickoffAt) - +new Date(a.kickoffAt))[0];
-  const featuredMatch = liveMatch ?? upcoming[0] ?? lastPlayed;
+  const featuredMatch = liveMatch ?? ongoing ?? upcoming[0] ?? lastPlayed;
   const featuredStarted =
     !!featuredMatch &&
     (!!featuredMatch.live ||
@@ -84,11 +95,19 @@ export default async function DashboardPage() {
       new Date(featuredMatch.kickoffAt).getTime() <= now);
   const featuredLabel = featuredMatch?.live
     ? "En direct"
-    : featuredStarted
-      ? "Dernier match"
-      : "Prochain match";
+    : featuredMatch === ongoing
+      ? "En cours"
+      : featuredStarted
+        ? "Dernier match"
+        : "Prochain match";
 
-  const upcomingMatches = upcoming.slice(0, 3);
+  const nextKickoffMs = upcoming[0] ? +new Date(upcoming[0].kickoffAt) : null;
+  const upcomingMatches = nextKickoffMs
+    ? upcoming.filter(
+        (m) =>
+          +new Date(m.kickoffAt) === nextKickoffMs && m.id !== featuredMatch?.id
+      )
+    : [];
 
   // Mon prono sur le match à la une (s'il existe).
   const featuredPrediction = featuredMatch
@@ -99,7 +118,9 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {hasLive && <LiveRefresher seconds={30} />}
+      {(hasLive || featuredMatch === ongoing) && (
+        <LiveRefresher seconds={30} />
+      )}
 
       <PageHeader
         title={
