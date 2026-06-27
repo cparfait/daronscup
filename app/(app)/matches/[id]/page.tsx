@@ -29,7 +29,8 @@ export default async function MatchDetailPage({
   let existing: { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string } | undefined;
   if (session?.user?.id) {
     try {
-      const pred = await (prisma.prediction.findUnique as Function)({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pred = await (prisma.prediction.findUnique as any)({
         where: { userId_matchId: { userId: session.user.id, matchId: id } },
         select: { homeScore: true, awayScore: true, joker: true, penaltyPick: true, comment: true },
       });
