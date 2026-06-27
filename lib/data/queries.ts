@@ -35,7 +35,7 @@ type DbMatch = {
   oddsHome: number | null;
   oddsDraw: number | null;
   oddsAway: number | null;
-  result: { homeScore: number; awayScore: number; status: string } | null;
+  result: { homeScore: number; awayScore: number; penaltyWinner?: string | null; status: string } | null;
 };
 
 /** Convertit une ligne Prisma `Match` (avec result) vers le type UI. */
@@ -59,6 +59,7 @@ function toUiMatch(m: DbMatch): Match {
         ? {
             homeScore: m.result.homeScore,
             awayScore: m.result.awayScore,
+            penaltyWinner: m.result.penaltyWinner ?? null,
             status: "FINISHED",
           }
         : undefined,

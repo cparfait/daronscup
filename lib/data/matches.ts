@@ -37,7 +37,7 @@ export type Match = {
   stage: Stage;
   group: string | null;
   matchday: number | null;
-  result?: { homeScore: number; awayScore: number; status: "FINISHED" };
+  result?: { homeScore: number; awayScore: number; penaltyWinner?: string | null; status: "FINISHED" };
   /** Score en direct (match en cours) — non crédité tant que pas terminé. */
   live?: { homeScore: number; awayScore: number };
   /** Cotes 1X2 figées (pour afficher les points par issue) — null si absentes. */

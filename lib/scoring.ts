@@ -39,6 +39,7 @@ export type ScoreBreakdown = {
   points: number;
   exactScore: boolean;
   correctResult: boolean;
+  correctPenalty: boolean;
 };
 
 /** -1 = victoire extérieure, 0 = nul, 1 = victoire domicile. */
@@ -52,7 +53,9 @@ export function computePoints(
   prediction: ScoreInput,
   result: ScoreInput,
   joker = false,
-  odds?: OddsInput | null
+  odds?: OddsInput | null,
+  penaltyPick?: string | null,
+  penaltyWinner?: string | null
 ): ScoreBreakdown {
   const exactScore =
     prediction.homeScore === result.homeScore &&
@@ -61,10 +64,21 @@ export function computePoints(
   const predOutcome = outcome(prediction);
   const resOutcome = outcome(result);
   const sameOutcome = predOutcome === resOutcome;
-  const isDraw = predOutcome === 0;
+  const isDraw = resOutcome === 0;
   const sameDiff =
     prediction.homeScore - prediction.awayScore ===
     result.homeScore - result.awayScore;
+
+  // Bon vainqueur aux tirs : nul à 90 min, pick renseigné et correct.
+  const correctPenalty =
+    !!penaltyWinner &&
+    !!penaltyPick &&
+    sameOutcome &&
+    isDraw &&
+    penaltyPick === penaltyWinner;
+
+  // Nul prédit + vainqueur aux tirs correct → équivalent score exact (R×2).
+  const effectiveExact = exactScore || correctPenalty;
 
   // Points « bon résultat » indexés sur la cote de l'issue RÉELLE (façon MPP) :
   // plus elle était improbable, plus elle rapporte. `null` si pas de cote.
@@ -74,12 +88,12 @@ export function computePoints(
   if (R !== null) {
     // ── Barème « cotes » ──
     if (!sameOutcome) base = 0;
-    else if (exactScore) base = R * 2; // score exact = double le résultat
+    else if (effectiveExact) base = R * 2; // score exact ou penalty correct = double
     else if (sameDiff && !isDraw) base = R + 1; // bonne diff (hors nul)
     else base = R; // bon résultat seul
   } else {
     // ── Repli : barème historique (3 / 2 / 1) ──
-    if (exactScore) base = 3;
+    if (effectiveExact) base = 3;
     else if (sameOutcome && sameDiff && !isDraw) base = 2;
     else if (sameOutcome) base = 1;
     else base = 0;
@@ -88,7 +102,8 @@ export function computePoints(
   return {
     base,
     points: joker ? base * 2 : base,
-    exactScore,
+    exactScore: effectiveExact,
     correctResult: sameOutcome,
+    correctPenalty,
   };
 }

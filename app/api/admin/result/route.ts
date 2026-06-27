@@ -8,6 +8,7 @@ const schema = z.object({
   matchId: z.string().min(1),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
+  penaltyWinner: z.enum(["home", "away"]).nullable().optional(),
 });
 
 /**
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Score invalide." }, { status: 400 });
   }
 
-  const { matchId, homeScore, awayScore } = parsed.data;
+  const { matchId, homeScore, awayScore, penaltyWinner } = parsed.data;
 
   // Verrou : on refuse toute saisie si un résultat existe déjà (pas de correction).
   const existing = await prisma.result.findUnique({ where: { matchId } });
@@ -40,7 +41,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { scored } = await applyMatchResult(matchId, homeScore, awayScore);
+    const { scored } = await applyMatchResult(matchId, homeScore, awayScore, {
+      penaltyWinner: penaltyWinner ?? null,
+    });
     return NextResponse.json({ ok: true, scored });
   } catch {
     return NextResponse.json({ error: "Erreur lors de l'enregistrement." }, { status: 500 });

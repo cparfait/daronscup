@@ -26,18 +26,19 @@ export default async function MatchDetailPage({
   if (!match) notFound();
 
   // Prono existant de l'utilisateur connecté (pour pré-remplir le formulaire)
-  let existing: { homeScore: number; awayScore: number; joker: boolean; comment?: string } | undefined;
+  let existing: { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string } | undefined;
   if (session?.user?.id) {
     try {
-      const pred = await prisma.prediction.findUnique({
+      const pred = await (prisma.prediction.findUnique as Function)({
         where: { userId_matchId: { userId: session.user.id, matchId: id } },
-        select: { homeScore: true, awayScore: true, joker: true, comment: true },
+        select: { homeScore: true, awayScore: true, joker: true, penaltyPick: true, comment: true },
       });
       if (pred) {
         existing = {
           homeScore: pred.homeScore,
           awayScore: pred.awayScore,
           joker: pred.joker,
+          penaltyPick: pred.penaltyPick ?? null,
           comment: pred.comment ?? undefined,
         };
       }
@@ -227,6 +228,7 @@ export default async function MatchDetailPage({
             homeFlag={match.homeFlag}
             awayFlag={match.awayFlag}
             kickoffAt={match.kickoffAt}
+            stage={match.stage}
             locked={locked}
             initial={existing}
             jokersLeft={jokersLeft}

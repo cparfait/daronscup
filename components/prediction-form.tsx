@@ -13,8 +13,9 @@ type Props = {
   homeFlag: string;
   awayFlag: string;
   kickoffAt: string;
+  stage: string;
   locked: boolean; // calculé côté serveur (kickoff passé)
-  initial?: { homeScore: number; awayScore: number; joker: boolean; comment?: string };
+  initial?: { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string };
   jokersLeft: number; // jokers restants dans la phase (hors ce match)
   jokerBudget: number; // budget total de la phase (4 poules / 2 finale)
 };
@@ -75,12 +76,19 @@ function Stepper({
   );
 }
 
+const KNOCKOUT_STAGES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER", "SEMI", "THIRD_PLACE", "FINAL"]);
+
 export function PredictionForm(props: Props) {
   const router = useRouter();
   const { locked, initial, jokersLeft, jokerBudget } = props;
+  const isKnockout = KNOCKOUT_STAGES.has(props.stage);
   const [home, setHome] = useState(initial?.homeScore ?? 0);
   const [away, setAway] = useState(initial?.awayScore ?? 0);
   const [joker, setJoker] = useState(initial?.joker ?? false);
+  const [penaltyPick, setPenaltyPick] = useState<"home" | "away" | null>(
+    (initial?.penaltyPick as "home" | "away" | null) ?? null
+  );
+  const isDraw = home === away;
   // On peut activer le joker s'il en reste, ou s'il est déjà posé sur ce match.
   const canUseJoker = jokersLeft > 0 || joker;
   const [comment, setComment] = useState(initial?.comment ?? "");
@@ -101,6 +109,7 @@ export function PredictionForm(props: Props) {
     home !== (initial?.homeScore ?? 0) ||
     away !== (initial?.awayScore ?? 0) ||
     joker !== (initial?.joker ?? false) ||
+    penaltyPick !== (initial?.penaltyPick ?? null) ||
     comment.trim() !== (initial?.comment ?? "");
 
   async function submit() {
@@ -115,6 +124,7 @@ export function PredictionForm(props: Props) {
           homeScore: home,
           awayScore: away,
           joker,
+          penaltyPick: isKnockout && isDraw ? penaltyPick : null,
           comment: comment.trim() || undefined,
         }),
       });
@@ -140,7 +150,7 @@ export function PredictionForm(props: Props) {
     const t = setTimeout(submit, delay);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [home, away, joker, comment, anyScore, bothScores, dirty, locked]);
+  }, [home, away, joker, penaltyPick, comment, anyScore, bothScores, dirty, locked]);
 
   if (locked) {
     return (
@@ -178,6 +188,42 @@ export function PredictionForm(props: Props) {
           disabled={status === "saving"}
         />
       </div>
+
+      {/* Vainqueur aux tirs au but — affiché uniquement en phase à élimination directe quand le prono est un nul */}
+      {isKnockout && isDraw && (
+        <div className="mt-5">
+          <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-[var(--color-muted)]">
+            Qui gagne aux tirs au but ?
+          </p>
+          <div className="flex gap-2">
+            {(["home", "away"] as const).map((side) => {
+              const team = side === "home" ? props.homeTeam : props.awayTeam;
+              const flag = side === "home" ? props.homeFlag : props.awayFlag;
+              const selected = penaltyPick === side;
+              return (
+                <button
+                  key={side}
+                  type="button"
+                  disabled={status === "saving"}
+                  onClick={() => setPenaltyPick(selected ? null : side)}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+                    selected
+                      ? "border-[var(--color-pitch-bright)] bg-[var(--color-pitch)]/20 text-[var(--color-pitch-bright)]"
+                      : "border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[var(--color-muted)]"
+                  )}
+                >
+                  <Flag code={flag} team={team} className="h-3.5 w-5 shrink-0" />
+                  <span className="truncate">{team}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-center text-[10px] text-[var(--color-muted)]">
+            Bonus score exact si tu trouves le vainqueur 🎯
+          </p>
+        </div>
+      )}
 
       {/* Joker */}
       <button

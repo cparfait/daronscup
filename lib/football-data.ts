@@ -28,7 +28,10 @@ type FdMatch = {
   matchday: number | null;
   homeTeam: { name: string | null };
   awayTeam: { name: string | null };
-  score: { fullTime: { home: number | null; away: number | null } };
+  score: {
+    fullTime: { home: number | null; away: number | null };
+    penalties: { home: number | null; away: number | null } | null;
+  };
 };
 
 type FdMatchesResponse = { matches: FdMatch[] };
@@ -241,7 +244,13 @@ async function runSyncMatches(
     const home = fd.score.fullTime.home;
     const away = fd.score.fullTime.away;
     if (fd.status === "FINISHED" && home != null && away != null) {
-      await applyMatchResult(match.id, home, away);
+      // Vainqueur aux tirs au but (matchs à élimination directe en nul à 90 min).
+      let penaltyWinner: string | null = null;
+      const pen = fd.score.penalties;
+      if (pen?.home != null && pen?.away != null && home === away) {
+        penaltyWinner = pen.home > pen.away ? "home" : "away";
+      }
+      await applyMatchResult(match.id, home, away, { penaltyWinner });
       results++;
     } else if (
       (fd.status === "IN_PLAY" || fd.status === "PAUSED") &&
@@ -338,15 +347,18 @@ export async function applyMatchResult(
   matchId: string,
   homeScore: number,
   awayScore: number,
-  opts: { force?: boolean } = {}
+  opts: { force?: boolean; penaltyWinner?: string | null } = {}
 ): Promise<{ scored: number }> {
   // Statut AVANT cet appel → permet de détecter la transition vers FINISHED
   // (pour ne poster le récap chat qu'une fois, jamais sur un simple rescore).
   const priorResult = await prisma.result.findUnique({ where: { matchId } });
   const justFinished = priorResult?.status !== "FINISHED";
+  const penaltyWinner = opts.penaltyWinner ?? null;
   const resultChanged =
     priorResult?.status === "FINISHED" &&
-    (priorResult.homeScore !== homeScore || priorResult.awayScore !== awayScore);
+    (priorResult.homeScore !== homeScore ||
+      priorResult.awayScore !== awayScore ||
+      (priorResult as { penaltyWinner?: string | null }).penaltyWinner !== penaltyWinner);
 
   // Fast-path pour la sync auto (toutes les 90 s en live) : si ce résultat est
   // déjà enregistré à l'identique et qu'aucun prono n'attend de points, il n'y
@@ -383,7 +395,9 @@ export async function applyMatchResult(
       { homeScore: p.homeScore, awayScore: p.awayScore },
       { homeScore, awayScore },
       p.joker,
-      odds
+      odds,
+      (p as { penaltyPick?: string | null }).penaltyPick,
+      penaltyWinner
     ).points;
     return p.pointsAwarded !== pts;
   });
@@ -405,8 +419,8 @@ export async function applyMatchResult(
     async (tx) => {
       await tx.result.upsert({
         where: { matchId },
-        update: { homeScore, awayScore, status: "FINISHED" },
-        create: { matchId, homeScore, awayScore, status: "FINISHED" },
+        update: { homeScore, awayScore, penaltyWinner, status: "FINISHED" } as any,
+        create: { matchId, homeScore, awayScore, penaltyWinner, status: "FINISHED" } as any,
       });
 
       for (const pred of preds) {
@@ -414,7 +428,9 @@ export async function applyMatchResult(
           { homeScore: pred.homeScore, awayScore: pred.awayScore },
           { homeScore, awayScore },
           pred.joker,
-          odds
+          odds,
+          (pred as { penaltyPick?: string | null }).penaltyPick,
+          penaltyWinner
         );
         if (pred.pointsAwarded !== points) {
           await tx.prediction.update({
@@ -475,7 +491,9 @@ export async function applyMatchResult(
               home: up.match.oddsHome,
               draw: up.match.oddsDraw,
               away: up.match.oddsAway,
-            }
+            },
+            (up as { penaltyPick?: string | null }).penaltyPick,
+            (r as { penaltyWinner?: string | null }).penaltyWinner
           );
           points += b.points;
           if (b.exactScore) exactScores++;

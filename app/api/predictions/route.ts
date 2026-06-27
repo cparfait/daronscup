@@ -9,6 +9,7 @@ const bodySchema = z.object({
   homeScore: z.number().int().min(0).max(20),
   awayScore: z.number().int().min(0).max(20),
   joker: z.boolean().optional().default(false),
+  penaltyPick: z.enum(["home", "away"]).nullable().optional(),
   comment: z.string().max(280).optional(),
 });
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { matchId, homeScore, awayScore, joker, comment } = parsed.data;
+  const { matchId, homeScore, awayScore, joker, penaltyPick, comment } = parsed.data;
   const userId = session.user.id;
 
   const [match, me] = await Promise.all([
@@ -84,8 +85,8 @@ export async function POST(req: Request) {
 
   const prediction = await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
-    update: { homeScore, awayScore, joker, comment, submittedAt: new Date() },
-    create: { userId, matchId, homeScore, awayScore, joker, comment },
+    update: { homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment, submittedAt: new Date() } as any,
+    create: { userId, matchId, homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment } as any,
   });
 
   return NextResponse.json({ ok: true, prediction }, { status: 200 });
