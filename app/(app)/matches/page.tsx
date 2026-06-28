@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { MatchCardInteractive } from "@/components/match-card-interactive";
+import { KnockoutInfoModal } from "@/components/knockout-info-modal";
 import { Card } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -77,35 +78,12 @@ export default async function MatchesPage() {
 
   return (
     <>
-      {/* ── Header ── */}
-      <PageHeader title="Matchs" subtitle="À venir — Coupe du Monde 2026" />
-
-      {/* ── Bannière phase à élimination directe ── */}
-      {hasKnockout && (
-        <Card className="glass mb-4 border-[var(--color-pitch)]/30 bg-[var(--color-pitch)]/[0.06] p-4 space-y-3">
-          <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
-            🏆 Phase à élimination directe — comment ça marche ?
-          </p>
-          <ul className="space-y-2 text-xs text-[var(--color-muted)]">
-            <li className="flex items-start gap-2">
-              <span className="shrink-0">⚽</span>
-              <span><span className="font-semibold text-[var(--color-cream)]">Un match, une vie.</span> Pas de deuxième chance : le perdant est éliminé.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="shrink-0">📊</span>
-              <span><span className="font-semibold text-[var(--color-cream)]">Le barème ne change pas</span> : score exact × 2, bonne différence +1, bon résultat = R pts (selon les cotes).</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="shrink-0">🎯</span>
-              <span><span className="font-semibold text-[var(--color-cream)]">Nul après 90 min ?</span> Désigne le vainqueur aux tirs au but — bonne pioche = bonus équivalent au score exact !</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="shrink-0">⚠️</span>
-              <span><span className="font-semibold text-[var(--color-cream)]">Pas encore choisi ton champion ?</span> Tu as jusqu&apos;à la fin des 32ème de finale — après il sera trop tard !</span>
-            </li>
-          </ul>
-        </Card>
-      )}
+      {/* ── Header avec bouton "?" éliminatoires ── */}
+      <PageHeader
+        title="Matchs"
+        subtitle="À venir — Coupe du Monde 2026"
+        action={<KnockoutInfoModal hasKnockout={hasKnockout} />}
+      />
 
       {/* ── Bulle : matchs sans prono ── */}
       {unpredicted > 0 ? (
