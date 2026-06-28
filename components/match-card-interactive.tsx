@@ -336,7 +336,9 @@ export function MatchCardInteractive({
           </div>
 
           {/* Vainqueur aux tirs au but — phase à élimination directe + nul */}
-          {isKnockout && isDraw && (
+          {isKnockout && isDraw && (() => {
+            const drawBonus = (outcomeResultPoints(match.odds, 0) ?? 3) * 2;
+            return (
             <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5">
               <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
                 Qui gagne aux tirs au but ?
@@ -365,11 +367,15 @@ export function MatchCardInteractive({
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-center text-[10px] text-[var(--color-muted)]">
-                Bonus score exact si tu trouves le vainqueur 🎯
+              <p className="mt-1.5 flex items-center justify-center gap-1.5 text-[10px] text-[var(--color-muted)]">
+                Bonus si tu trouves le vainqueur des tirs au but
+                <span className="rounded-full bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-bold text-[var(--color-gold)]">
+                  +{drawBonus} pts
+                </span>
               </p>
             </div>
-          )}
+            );
+          })()}
 
           <div className="flex items-center justify-between gap-2 pt-1">
             <button

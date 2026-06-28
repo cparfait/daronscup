@@ -230,6 +230,7 @@ export default async function MatchDetailPage({
             awayFlag={match.awayFlag}
             kickoffAt={match.kickoffAt}
             stage={match.stage}
+            odds={match.odds}
             locked={locked}
             initial={existing}
             jokersLeft={jokersLeft}

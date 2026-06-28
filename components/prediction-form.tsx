@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Minus, Plus, Lock, Loader2, Check } from "lucide-react";
 import { Flag } from "./flag";
 import { cn } from "@/lib/utils";
+import { outcomeResultPoints, type OddsInput } from "@/lib/odds";
 
 type Props = {
   matchId: string;
@@ -14,6 +15,7 @@ type Props = {
   awayFlag: string;
   kickoffAt: string;
   stage: string;
+  odds?: OddsInput | null;
   locked: boolean; // calculé côté serveur (kickoff passé)
   initial?: { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string };
   jokersLeft: number; // jokers restants dans la phase (hors ce match)
@@ -82,6 +84,7 @@ export function PredictionForm(props: Props) {
   const router = useRouter();
   const { locked, initial, jokersLeft, jokerBudget } = props;
   const isKnockout = KNOCKOUT_STAGES.has(props.stage);
+  const drawBonus = (outcomeResultPoints(props.odds, 0) ?? 3) * 2;
   const [home, setHome] = useState(initial?.homeScore ?? 0);
   const [away, setAway] = useState(initial?.awayScore ?? 0);
   const [joker, setJoker] = useState(initial?.joker ?? false);
@@ -219,8 +222,11 @@ export function PredictionForm(props: Props) {
               );
             })}
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-[var(--color-muted)]">
-            Bonus score exact si tu trouves le vainqueur 🎯
+          <p className="mt-1.5 flex items-center justify-center gap-1.5 text-[10px] text-[var(--color-muted)]">
+            Bonus si tu trouves le vainqueur des tirs au but
+            <span className="rounded-full bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-bold text-[var(--color-gold)]">
+              +{drawBonus} pts
+            </span>
           </p>
         </div>
       )}
