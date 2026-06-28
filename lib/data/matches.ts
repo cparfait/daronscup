@@ -18,8 +18,8 @@ export type Stage =
 /** Libellés FR des phases du tournoi. */
 export const STAGE_LABELS: Record<Stage, string> = {
   GROUP: "Phase de poules",
-  ROUND_OF_32: "16ᵉˢ de finale",
-  ROUND_OF_16: "8ᵉˢ de finale",
+  ROUND_OF_32: "32ème de finale",
+  ROUND_OF_16: "16ème de finale",
   QUARTER: "Quart de finale",
   SEMI: "Demi-finale",
   THIRD_PLACE: "Petite finale",

@@ -419,7 +419,9 @@ export async function applyMatchResult(
     async (tx) => {
       await tx.result.upsert({
         where: { matchId },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         update: { homeScore, awayScore, penaltyWinner, status: "FINISHED" } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         create: { matchId, homeScore, awayScore, penaltyWinner, status: "FINISHED" } as any,
       });
 

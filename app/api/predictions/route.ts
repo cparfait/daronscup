@@ -85,7 +85,9 @@ export async function POST(req: Request) {
 
   const prediction = await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     update: { homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment, submittedAt: new Date() } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     create: { userId, matchId, homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment } as any,
   });
 

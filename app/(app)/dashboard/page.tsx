@@ -175,7 +175,7 @@ export default async function DashboardPage() {
             <span>⚠️</span> Tu n&apos;as pas encore choisi ton champion !
           </p>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Tu as jusqu&apos;à la fin des 16ème de finale pour valider ton choix.
+            Tu as jusqu&apos;à la fin des 32ème de finale pour valider ton choix.
             Après il sera trop tard — le bonus champion ne te sera pas crédité.
           </p>
         </div>

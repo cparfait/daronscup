@@ -101,7 +101,7 @@ export default async function MatchesPage() {
             </li>
             <li className="flex items-start gap-2">
               <span className="shrink-0">⚠️</span>
-              <span><span className="font-semibold text-[var(--color-cream)]">Pas encore choisi ton champion ?</span> Tu as jusqu'à la fin des 16ème de finale — après il sera trop tard !</span>
+              <span><span className="font-semibold text-[var(--color-cream)]">Pas encore choisi ton champion ?</span> Tu as jusqu&apos;à la fin des 32ème de finale — après il sera trop tard !</span>
             </li>
           </ul>
         </Card>
