@@ -5,18 +5,26 @@ import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
 import { GroupMatchesList } from "@/components/group-matches-list";
+import { BracketView } from "@/components/bracket-view";
 import { cn } from "@/lib/utils";
 import type { Match, StandingTeam } from "@/lib/data/matches";
+
+const TOURNOI_KEY = "__tournoi__";
 
 export function StandingsView({
   groups,
   matchesByGroup,
+  knockoutMatches,
 }: {
   groups: Record<string, StandingTeam[]>;
   matchesByGroup?: Record<string, Match[]>;
+  knockoutMatches?: Match[];
 }) {
   const groupKeys = Object.keys(groups).sort();
-  const [active, setActive] = useState<string>(groupKeys[0] ?? "A");
+  const hasKnockout = !!knockoutMatches?.length;
+
+  const defaultTab = hasKnockout ? TOURNOI_KEY : (groupKeys[0] ?? "A");
+  const [active, setActive] = useState<string>(defaultTab);
 
   // Arrivée depuis un drapeau cliqué (`/standings?team=…`) : ouvre le groupe de
   // l'équipe ciblée et la met en évidence.
@@ -31,7 +39,7 @@ export function StandingsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetTeam]);
 
-  if (groupKeys.length === 0) {
+  if (!hasKnockout && groupKeys.length === 0) {
     return (
       <Card className="glass p-8 text-center">
         <p className="text-sm text-[var(--color-muted)]">
@@ -46,6 +54,27 @@ export function StandingsView({
     <>
       {/* ── Tab bar ── */}
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Onglet Tournoi */}
+        {hasKnockout && (
+          <button
+            onClick={() => setActive(TOURNOI_KEY)}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-1.5 font-[family-name:var(--font-display)] text-sm font-semibold tracking-wide transition-colors duration-200",
+              active === TOURNOI_KEY
+                ? "bg-[var(--color-pitch)] text-white shadow-[0_0_12px_var(--color-pitch)]/25"
+                : "bg-[var(--color-surface-2)] text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-cream)]"
+            )}
+          >
+            🏆 Tournoi
+          </button>
+        )}
+
+        {/* Séparateur visuel */}
+        {hasKnockout && groupKeys.length > 0 && (
+          <div className="my-auto h-4 w-px shrink-0 bg-[var(--color-border-subtle)]" />
+        )}
+
+        {/* Onglets de groupes */}
         {groupKeys.map((key) => (
           <button
             key={key}
@@ -62,16 +91,20 @@ export function StandingsView({
         ))}
       </div>
 
-      {/* ── Group table ── */}
-      <GroupTable
-        group={active}
-        teams={groups[active] ?? []}
-        highlight={targetTeam}
-      />
-
-      {/* ── Matchs du groupe (résultats passés + à venir) ── */}
-      {matchesByGroup && matchesByGroup[active] && (
-        <GroupMatchesList matches={matchesByGroup[active]} />
+      {/* ── Contenu de l'onglet actif ── */}
+      {active === TOURNOI_KEY && hasKnockout ? (
+        <BracketView matches={knockoutMatches!} />
+      ) : (
+        <>
+          <GroupTable
+            group={active}
+            teams={groups[active] ?? []}
+            highlight={targetTeam}
+          />
+          {matchesByGroup && matchesByGroup[active] && (
+            <GroupMatchesList matches={matchesByGroup[active]} />
+          )}
+        </>
       )}
     </>
   );
@@ -90,7 +123,6 @@ function GroupTable({
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
 
-  // Fait défiler jusqu'à l'équipe mise en évidence (drapeau cliqué).
   useEffect(() => {
     if (highlight && rowRef.current) {
       rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -99,7 +131,6 @@ function GroupTable({
 
   return (
     <Card className="overflow-hidden">
-      {/* Group header */}
       <div className="border-b border-[var(--color-border-subtle)] px-4 py-2.5 font-[family-name:var(--font-display)] font-semibold uppercase tracking-wide text-[var(--color-pitch-bright)]">
         Groupe {group}
       </div>
@@ -132,15 +163,12 @@ function GroupTable({
                     "bg-[var(--color-pitch)]/15 ring-1 ring-inset ring-[var(--color-pitch-bright)]/40"
                 )}
               >
-                {/* Team name with flag */}
                 <td className="px-3 py-2.5 font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     <Flag code={t.flag} className="h-3.5 w-5" />
                     {t.team}
                   </span>
                 </td>
-
-                {/* Stats: J, G, N, P */}
                 {[t.j, t.g, t.n, t.p].map((v, i) => (
                   <td
                     key={i}
@@ -149,8 +177,6 @@ function GroupTable({
                     {v}
                   </td>
                 ))}
-
-                {/* Diff */}
                 <td
                   className={cn(
                     "px-1.5 py-2.5 text-center font-[family-name:var(--font-mono)]",
@@ -161,8 +187,6 @@ function GroupTable({
                 >
                   {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : "0"}
                 </td>
-
-                {/* Points */}
                 <td className="px-1.5 py-2.5 text-center font-[family-name:var(--font-display)] font-bold text-[var(--color-gold)]">
                   {t.pts}
                 </td>
