@@ -36,13 +36,14 @@ export default async function MatchesPage() {
   // Pronostics de l'utilisateur + jokers utilisés par phase (pour l'inline).
   const predByMatch = new Map<
     string,
-    { homeScore: number; awayScore: number; joker: boolean; comment?: string }
+    { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string }
   >();
   let groupJokers = 0;
   let knockoutJokers = 0;
   if (session?.user?.id) {
     try {
-      const preds = await prisma.prediction.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const preds = await (prisma.prediction.findMany as any)({
         where: { userId: session.user.id },
         include: { match: { select: { stage: true } } },
       });
@@ -51,6 +52,7 @@ export default async function MatchesPage() {
           homeScore: p.homeScore,
           awayScore: p.awayScore,
           joker: p.joker,
+          penaltyPick: p.penaltyPick ?? null,
           comment: p.comment ?? undefined,
         });
         if (p.joker) {

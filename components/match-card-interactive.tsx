@@ -27,11 +27,14 @@ type Props = {
     homeScore: number;
     awayScore: number;
     joker: boolean;
+    penaltyPick?: string | null;
     comment?: string;
   };
   jokersLeft: number;
   jokerBudget: number;
 };
+
+const KNOCKOUT_STAGES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER", "SEMI", "THIRD_PLACE", "FINAL"]);
 
 /**
  * Colonne « issue » d'une équipe : drapeau + nom + points en jeu (si cotes) +
@@ -131,6 +134,9 @@ export function MatchCardInteractive({
   const [home, setHome] = useState(prediction?.homeScore ?? 0);
   const [away, setAway] = useState(prediction?.awayScore ?? 0);
   const [joker, setJoker] = useState(prediction?.joker ?? false);
+  const [penaltyPick, setPenaltyPick] = useState<"home" | "away" | null>(
+    (prediction?.penaltyPick as "home" | "away" | null) ?? null
+  );
   const [comment, setComment] = useState(prediction?.comment ?? "");
   const [showComment, setShowComment] = useState(!!prediction?.comment);
   const commentRef = useRef<HTMLTextAreaElement>(null);
@@ -151,6 +157,8 @@ export function MatchCardInteractive({
   const readOnly = finished || locked || !!live;
   const group = match.group ? `Groupe ${match.group}` : STAGE_LABELS[match.stage];
   const canUseJoker = jokersLeft > 0 || joker;
+  const isKnockout = KNOCKOUT_STAGES.has(match.stage);
+  const isDraw = home === away;
 
   // Points (réels si terminé, provisoires si en cours) du prono de l'utilisateur.
   const refScore = finished ? match.result : live;
@@ -168,6 +176,7 @@ export function MatchCardInteractive({
     home !== (prediction?.homeScore ?? 0) ||
     away !== (prediction?.awayScore ?? 0) ||
     joker !== (prediction?.joker ?? false) ||
+    penaltyPick !== (prediction?.penaltyPick ?? null) ||
     comment.trim() !== (prediction?.comment ?? "");
 
   const save = () =>
@@ -182,6 +191,7 @@ export function MatchCardInteractive({
             homeScore: home,
             awayScore: away,
             joker,
+            penaltyPick: isKnockout && isDraw ? penaltyPick : null,
             comment: comment.trim() || undefined,
           }),
         });
@@ -205,7 +215,7 @@ export function MatchCardInteractive({
     const t = setTimeout(save, delay);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [home, away, joker, comment, anyScore, bothScores, dirty, readOnly]);
+  }, [home, away, joker, penaltyPick, comment, anyScore, bothScores, dirty, readOnly]);
 
   return (
     <Card className="p-4">
@@ -324,6 +334,42 @@ export function MatchCardInteractive({
               disabled={pending}
             />
           </div>
+
+          {/* Vainqueur aux tirs au but — phase à élimination directe + nul */}
+          {isKnockout && isDraw && (
+            <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5">
+              <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+                Qui gagne aux tirs au but ?
+              </p>
+              <div className="flex gap-2">
+                {(["home", "away"] as const).map((side) => {
+                  const team = side === "home" ? match.homeTeam : match.awayTeam;
+                  const flag = side === "home" ? match.homeFlag : match.awayFlag;
+                  const selected = penaltyPick === side;
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => setPenaltyPick(selected ? null : side)}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
+                        selected
+                          ? "border-[var(--color-pitch-bright)] bg-[var(--color-pitch)]/20 text-[var(--color-pitch-bright)]"
+                          : "border-[var(--color-border-subtle)] text-[var(--color-muted)]"
+                      )}
+                    >
+                      <Flag code={flag} team={team} className="h-3 w-4.5 shrink-0" />
+                      <span className="truncate">{team}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-center text-[10px] text-[var(--color-muted)]">
+                Bonus score exact si tu trouves le vainqueur 🎯
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
             <button
