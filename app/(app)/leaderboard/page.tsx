@@ -118,12 +118,14 @@ export default async function LeaderboardPage({
         )}
       </div>
 
-      {/* ── Vue Tournoi ── */}
+      {/* ── Tableau du tournoi (au-dessus du classement, pas à la place) ── */}
       {isTournoi && (
-        <BracketView matches={knockoutMatches} />
+        <div className="mb-8">
+          <BracketView matches={knockoutMatches} />
+        </div>
       )}
 
-      {!isTournoi && entries.length === 0 && (
+      {entries.length === 0 && (
         <Card className="glass mt-4 p-8 text-center">
           <p className="text-sm text-[var(--color-muted)]">
             Aucun joueur classé pour l&apos;instant. Les points arrivent après
@@ -132,9 +134,12 @@ export default async function LeaderboardPage({
         </Card>
       )}
 
-      {/* ── Podium + Classement (masqués en vue Tournoi) ── */}
-      {!isTournoi && (
-      <>
+      {/* ── Classement des joueurs (toujours affiché) ── */}
+      {isTournoi && entries.length > 0 && (
+        <h2 className="mb-3 font-[family-name:var(--font-display)] text-xs font-bold uppercase tracking-widest text-[var(--color-muted)]">
+          Classement des joueurs
+        </h2>
+      )}
       <div className="flex items-end justify-center gap-3 px-2 pt-4 pb-8">
         {top3[1] && (
           <PodiumCard rank={2} name={top3[1].name} points={top3[1].total} index={1} />
@@ -226,8 +231,6 @@ export default async function LeaderboardPage({
           );
         })}
       </div>
-      </>
-      )}
     </>
   );
 }
