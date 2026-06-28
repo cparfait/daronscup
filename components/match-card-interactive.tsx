@@ -335,9 +335,9 @@ export function MatchCardInteractive({
             />
           </div>
 
-          {/* Vainqueur aux tirs au but — phase à élimination directe + nul */}
-          {isKnockout && isDraw && (() => {
-            const drawBonus = (outcomeResultPoints(match.odds, 0) ?? 1) + 2;
+          {/* Vainqueur aux tirs au but — seulement si un prono existe ou que les deux scores ont été saisis */}
+          {isKnockout && isDraw && (!!prediction || bothScores) && (() => {
+            const drawBonus = 2;
             return (
             <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5">
               <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
