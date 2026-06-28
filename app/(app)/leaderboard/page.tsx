@@ -7,14 +7,19 @@ import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
 import { LiveRefresher } from "@/components/live-refresher";
 import { GroupSwitcher } from "@/components/group-switcher";
+import { BracketView } from "@/components/bracket-view";
 import { cn } from "@/lib/utils";
-import { getLiveLeaderboard } from "@/lib/data/queries";
+import { getLiveLeaderboard, getMatches } from "@/lib/data/queries";
 import {
   getSwitchableGroups,
   getGroupMemberIds,
   requireActiveGroup,
   getAllPlayerIds,
 } from "@/lib/groups";
+
+const KNOCKOUT_STAGES = new Set([
+  "ROUND_OF_32", "ROUND_OF_16", "QUARTER", "SEMI", "THIRD_PLACE", "FINAL",
+]);
 
 export const metadata = { title: "Classement · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -32,17 +37,23 @@ export default async function LeaderboardPage({
 
   const { scope } = await searchParams;
   const isGlobal = scope === "global";
+  const isTournoi = scope === "tournoi";
 
   const activeGroup = await requireActiveGroup(userId);
-  const [myGroups, memberIds] = await Promise.all([
+
+  const [myGroups, memberIds, allMatches] = await Promise.all([
     getSwitchableGroups(userId, session.user.role === "ADMIN"),
     isGlobal ? getAllPlayerIds() : getGroupMemberIds(activeGroup.id),
+    getMatches(),
   ]);
+
+  const knockoutMatches = allMatches.filter((m) => KNOCKOUT_STAGES.has(m.stage));
+  const hasKnockout = knockoutMatches.length > 0;
 
   const { entries, hasLive } = await getLiveLeaderboard(memberIds);
   const top3 = entries.slice(0, 3);
 
-  const scopeLabel = isGlobal ? "Tous les joueurs" : activeGroup.name;
+  const scopeLabel = isTournoi ? "Tableau du tournoi" : isGlobal ? "Tous les joueurs" : activeGroup.name;
 
   return (
     <>
@@ -61,14 +72,14 @@ export default async function LeaderboardPage({
         }
       />
 
-      {/* ── Toggle Mon groupe / Classement général ── */}
+      {/* ── Toggle Mon groupe / Classement général / Tournoi ── */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="inline-flex rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-0.5 text-xs font-semibold">
           <Link
             href="/leaderboard"
             className={cn(
               "rounded-full px-3 py-1.5 transition-colors",
-              !isGlobal
+              !isGlobal && !isTournoi
                 ? "bg-[var(--color-pitch)] text-white shadow-[0_0_12px_var(--color-pitch)]/25"
                 : "text-[var(--color-muted)] hover:text-[var(--color-cream)]"
             )}
@@ -87,14 +98,32 @@ export default async function LeaderboardPage({
             <Globe className="size-3.5" />
             Général
           </Link>
+          {hasKnockout && (
+            <Link
+              href="/leaderboard?scope=tournoi"
+              className={cn(
+                "rounded-full px-3 py-1.5 transition-colors",
+                isTournoi
+                  ? "bg-[var(--color-pitch)] text-white shadow-[0_0_12px_var(--color-pitch)]/25"
+                  : "text-[var(--color-muted)] hover:text-[var(--color-cream)]"
+              )}
+            >
+              🏆 Tournoi
+            </Link>
+          )}
         </div>
 
-        {!isGlobal && (
+        {!isGlobal && !isTournoi && (
           <GroupSwitcher groups={myGroups} activeId={activeGroup.id} />
         )}
       </div>
 
-      {entries.length === 0 && (
+      {/* ── Vue Tournoi ── */}
+      {isTournoi && (
+        <BracketView matches={knockoutMatches} />
+      )}
+
+      {!isTournoi && entries.length === 0 && (
         <Card className="glass mt-4 p-8 text-center">
           <p className="text-sm text-[var(--color-muted)]">
             Aucun joueur classé pour l&apos;instant. Les points arrivent après
@@ -103,7 +132,9 @@ export default async function LeaderboardPage({
         </Card>
       )}
 
-      {/* ── Podium ── */}
+      {/* ── Podium + Classement (masqués en vue Tournoi) ── */}
+      {!isTournoi && (
+      <>
       <div className="flex items-end justify-center gap-3 px-2 pt-4 pb-8">
         {top3[1] && (
           <PodiumCard rank={2} name={top3[1].name} points={top3[1].total} index={1} />
@@ -195,6 +226,8 @@ export default async function LeaderboardPage({
           );
         })}
       </div>
+      </>
+      )}
     </>
   );
 }
