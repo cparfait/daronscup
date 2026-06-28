@@ -77,9 +77,6 @@ export function computePoints(
     isDraw &&
     penaltyPick === penaltyWinner;
 
-  // Nul prédit + vainqueur aux tirs correct → équivalent score exact (R×2).
-  const effectiveExact = exactScore || correctPenalty;
-
   // Points « bon résultat » indexés sur la cote de l'issue RÉELLE (façon MPP) :
   // plus elle était improbable, plus elle rapporte. `null` si pas de cote.
   const R = outcomeResultPoints(odds, resOutcome);
@@ -88,12 +85,14 @@ export function computePoints(
   if (R !== null) {
     // ── Barème « cotes » ──
     if (!sameOutcome) base = 0;
-    else if (effectiveExact) base = R * 2; // score exact ou penalty correct = double
+    else if (exactScore) base = R * 2;       // score exact = double
+    else if (correctPenalty) base = R + 2;   // bon nul + bon vainqueur TAB = +2 fixe
     else if (sameDiff && !isDraw) base = R + 1; // bonne diff (hors nul)
-    else base = R; // bon résultat seul
+    else base = R;                            // bon résultat seul
   } else {
     // ── Repli : barème historique (3 / 2 / 1) ──
-    if (effectiveExact) base = 3;
+    if (exactScore) base = 3;
+    else if (correctPenalty) base = 3;        // nul + TAB = même que score exact (1+2)
     else if (sameOutcome && sameDiff && !isDraw) base = 2;
     else if (sameOutcome) base = 1;
     else base = 0;
@@ -102,7 +101,7 @@ export function computePoints(
   return {
     base,
     points: joker ? base * 2 : base,
-    exactScore: effectiveExact,
+    exactScore,
     correctResult: sameOutcome,
     correctPenalty,
   };

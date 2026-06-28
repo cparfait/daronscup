@@ -84,7 +84,7 @@ export function PredictionForm(props: Props) {
   const router = useRouter();
   const { locked, initial, jokersLeft, jokerBudget } = props;
   const isKnockout = KNOCKOUT_STAGES.has(props.stage);
-  const drawBonus = (outcomeResultPoints(props.odds, 0) ?? 3) * 2;
+  const drawBonus = (outcomeResultPoints(props.odds, 0) ?? 1) + 2;
   const [home, setHome] = useState(initial?.homeScore ?? 0);
   const [away, setAway] = useState(initial?.awayScore ?? 0);
   const [joker, setJoker] = useState(initial?.joker ?? false);
