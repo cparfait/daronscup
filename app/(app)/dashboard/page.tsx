@@ -60,6 +60,10 @@ export default async function DashboardPage() {
     isChampionPickOpen(),
   ]);
 
+  const knockoutStarted = matches.some(
+    (m) => m.stage !== "GROUP" && +new Date(m.kickoffAt) <= now
+  );
+
   const TOP_3 = leaderboard.slice(0, 3).map((u, i) => ({
     name: u.name,
     points: u.total,
@@ -164,6 +168,18 @@ export default async function DashboardPage() {
 
       <HomeOnboarding />
       <OddsAnnouncement />
+
+      {knockoutStarted && championOpen && !championPick && (
+        <div className="mb-4 rounded-2xl border border-amber-500/40 bg-amber-500/[0.08] p-4">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-400">
+            <span>⚠️</span> Tu n&apos;as pas encore choisi ton champion !
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            Tu as jusqu&apos;à la fin des 16ème de finale pour valider ton choix.
+            Après il sera trop tard — le bonus champion ne te sera pas crédité.
+          </p>
+        </div>
+      )}
 
       <ChampionPickCard
         pick={championPick}

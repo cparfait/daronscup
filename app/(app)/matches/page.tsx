@@ -82,17 +82,28 @@ export default async function MatchesPage() {
 
       {/* ── Bannière phase à élimination directe ── */}
       {hasKnockout && (
-        <Card className="glass mb-4 flex items-start gap-3 border-[var(--color-pitch)]/30 bg-[var(--color-pitch)]/[0.06] p-3.5">
-          <span className="mt-0.5 text-lg shrink-0">🎯</span>
-          <div>
-            <p className="text-sm font-semibold text-[var(--color-cream)]">
-              Phase à élimination directe
-            </p>
-            <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-              Si tu pronostics un nul, tu peux désigner le vainqueur aux tirs au but.
-              Bonne pioche = bonus équivalent au score exact !
-            </p>
-          </div>
+        <Card className="glass mb-4 border-[var(--color-pitch)]/30 bg-[var(--color-pitch)]/[0.06] p-4 space-y-3">
+          <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+            🏆 Phase à élimination directe — comment ça marche ?
+          </p>
+          <ul className="space-y-2 text-xs text-[var(--color-muted)]">
+            <li className="flex items-start gap-2">
+              <span className="shrink-0">⚽</span>
+              <span><span className="font-semibold text-[var(--color-cream)]">Un match, une vie.</span> Pas de deuxième chance : le perdant est éliminé.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0">📊</span>
+              <span><span className="font-semibold text-[var(--color-cream)]">Le barème ne change pas</span> : score exact × 2, bonne différence +1, bon résultat = R pts (selon les cotes).</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0">🎯</span>
+              <span><span className="font-semibold text-[var(--color-cream)]">Nul après 90 min ?</span> Désigne le vainqueur aux tirs au but — bonne pioche = bonus équivalent au score exact !</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="shrink-0">⚠️</span>
+              <span><span className="font-semibold text-[var(--color-cream)]">Pas encore choisi ton champion ?</span> Tu as jusqu'à la fin des 16ème de finale — après il sera trop tard !</span>
+            </li>
+          </ul>
         </Card>
       )}
 
