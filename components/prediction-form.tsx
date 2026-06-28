@@ -194,7 +194,7 @@ export function PredictionForm(props: Props) {
 
       {/* Vainqueur aux tirs au but — affiché uniquement en phase à élimination directe quand le prono est un nul */}
       {isKnockout && isDraw && (
-        <div className="mt-5">
+        <div className="tab-winner-glow mt-5 rounded-xl p-3">
           <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-[var(--color-muted)]">
             Qui gagne aux tirs au but ?
           </p>

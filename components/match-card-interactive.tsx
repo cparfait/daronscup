@@ -339,7 +339,7 @@ export function MatchCardInteractive({
           {isKnockout && isDraw && (!!prediction || bothScores) && (() => {
             const drawBonus = 2;
             return (
-            <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-2.5">
+            <div className="tab-winner-glow rounded-xl p-2.5">
               <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
                 Qui gagne aux tirs au but ?
               </p>

@@ -272,6 +272,50 @@ body:has(.theme-france) {
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.1);
 }
 
+/* Bloc "Qui gagne aux TAB ?" — halo vert pulsant + shimmer */
+.tab-winner-glow {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  background: linear-gradient(
+    145deg,
+    rgba(22, 163, 74, 0.10) 0%,
+    rgba(22, 163, 74, 0.04) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 16px rgba(34, 197, 94, 0.10);
+  animation: tab-glow-pulse 2.5s ease-in-out infinite;
+}
+
+.tab-winner-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 197, 94, 0.08),
+    transparent
+  );
+  animation: shimmer 3s 1.2s infinite;
+  pointer-events: none;
+}
+
+@keyframes tab-glow-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 12px rgba(34, 197, 94, 0.08);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 28px rgba(34, 197, 94, 0.22);
+  }
+}
+
 /* Pas de contour au focus souris/tactile… */
 input:focus,
 textarea:focus,
