@@ -73,11 +73,28 @@ export default async function MatchesPage() {
 
   // Matchs à venir sans pronostic.
   const unpredicted = matches.filter((m) => !predByMatch.has(m.id)).length;
+  const hasKnockout = matches.some((m) => m.stage !== "GROUP");
 
   return (
     <>
       {/* ── Header ── */}
       <PageHeader title="Matchs" subtitle="À venir — Coupe du Monde 2026" />
+
+      {/* ── Bannière phase à élimination directe ── */}
+      {hasKnockout && (
+        <Card className="glass mb-4 flex items-start gap-3 border-[var(--color-pitch)]/30 bg-[var(--color-pitch)]/[0.06] p-3.5">
+          <span className="mt-0.5 text-lg shrink-0">🎯</span>
+          <div>
+            <p className="text-sm font-semibold text-[var(--color-cream)]">
+              Phase à élimination directe
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+              Si tu pronostics un nul, tu peux désigner le vainqueur aux tirs au but.
+              Bonne pioche = bonus équivalent au score exact !
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* ── Bulle : matchs sans prono ── */}
       {unpredicted > 0 ? (

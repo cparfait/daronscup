@@ -345,14 +345,16 @@ export async function getChampionOverride(): Promise<{
   }
 }
 
-/** Le pari champion est-il encore ouvert ? (fermé dès la finale jouée). */
+/** Le pari champion est-il encore ouvert ? (fermé dès le coup d'envoi du 1er match à élimination directe). */
 export async function isChampionPickOpen(): Promise<boolean> {
   try {
-    const final = await prisma.match.findFirst({
-      where: { stage: "FINAL" },
-      include: { result: true },
+    const firstKnockout = await prisma.match.findFirst({
+      where: { stage: { not: "GROUP" } },
+      orderBy: { kickoffAt: "asc" },
+      select: { kickoffAt: true },
     });
-    return !(final?.result && final.result.status === "FINISHED");
+    if (!firstKnockout) return true;
+    return firstKnockout.kickoffAt.getTime() > Date.now();
   } catch {
     return true;
   }
