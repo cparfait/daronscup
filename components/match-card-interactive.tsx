@@ -401,7 +401,7 @@ export function MatchCardInteractive({
             <span
               className={cn(
                 "flex items-center gap-1.5 text-xs font-medium",
-                saved
+                saved || prediction
                   ? "text-[var(--color-pitch-bright)]"
                   : "text-[var(--color-muted)]"
               )}
@@ -415,7 +415,9 @@ export function MatchCardInteractive({
                   <Check className="size-3.5" /> Enregistré
                 </>
               ) : prediction ? (
-                "Prono enregistré"
+                <>
+                  <Check className="size-3.5" /> Prono enregistré
+                </>
               ) : (
                 "Auto-enregistré"
               )}
