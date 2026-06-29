@@ -231,14 +231,14 @@ async function runSyncMatches(
       externalId: fd.id,
     };
 
-    const existing = await prisma.match.findFirst({
+    // Upsert atomique sur `externalId` (unique) : idempotent et sûr face à deux
+    // syncs concurrents (le verrou `syncInFlight` n'est que par process). Un
+    // findFirst+create laissait passer des doublons en cas de course.
+    const match = await prisma.match.upsert({
       where: { externalId: fd.id },
-      select: { id: true },
+      update: matchData,
+      create: matchData,
     });
-
-    const match = existing
-      ? await prisma.match.update({ where: { id: existing.id }, data: matchData })
-      : await prisma.match.create({ data: matchData });
 
     // Résultat
     const home = fd.score.fullTime.home;

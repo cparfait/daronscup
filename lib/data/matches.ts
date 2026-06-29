@@ -18,8 +18,12 @@ export type Stage =
 /** Libellés FR des phases du tournoi. */
 export const STAGE_LABELS: Record<Stage, string> = {
   GROUP: "Phase de poules",
-  ROUND_OF_32: "32ème de finale",
-  ROUND_OF_16: "16ème de finale",
+  // En français, le tour qui réunit 32 équipes = « 16èmes de finale »,
+  // celui à 16 équipes = « 8èmes de finale » (le n° = nb de matchs par camp,
+  // pas le nb d'équipes). Il n'existe pas de « 32ème de finale » : la phase à
+  // élimination directe de la CdM 2026 démarre aux 16èmes.
+  ROUND_OF_32: "16ème de finale",
+  ROUND_OF_16: "8ème de finale",
   QUARTER: "Quart de finale",
   SEMI: "Demi-finale",
   THIRD_PLACE: "Petite finale",

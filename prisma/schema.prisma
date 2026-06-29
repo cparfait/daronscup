@@ -79,7 +79,7 @@ model Match {
   stage       Stage
   group       String?
   matchday    Int? // numéro de journée (pour le joker / filtres)
-  externalId  Int? // id API-Football
+  externalId  Int?         @unique // id API-Football (clé d'idempotence du sync)
   // Cotes 1X2 figées (The Odds API) — servent au scoring « façon MPP » : plus
   // l'issue est improbable, plus le bon résultat rapporte. Capturées ~toutes
   // les 6 h jusqu'au coup d'envoi, puis figées (closing odds).

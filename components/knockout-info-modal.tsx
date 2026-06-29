@@ -89,7 +89,7 @@ export function KnockoutInfoModal({ hasKnockout }: { hasKnockout: boolean }) {
                   <span className="font-semibold text-[var(--color-cream)]">
                     Pas encore choisi ton champion ?
                   </span>{" "}
-                  Tu as jusqu&apos;à la fin des 32ème de finale — après il sera
+                  Tu as jusqu&apos;à la fin des 16ème de finale — après il sera
                   trop tard !
                 </span>
               </li>

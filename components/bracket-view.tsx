@@ -11,7 +11,7 @@ const UNIT = CARD_H + ROW_GAP; // 76px per slot
 const CONN_W = 20; // connector SVG width between columns
 
 const BRACKET_ROUNDS = [
-  { stage: "ROUND_OF_32", short: "32ÈMES", maxPerSide: 8 },
+  { stage: "ROUND_OF_32", short: "16ÈMES", maxPerSide: 8 },
   { stage: "ROUND_OF_16", short: "8ÈMES", maxPerSide: 4 },
   { stage: "QUARTER", short: "QUARTS", maxPerSide: 2 },
   { stage: "SEMI", short: "DEMI-FINALES", maxPerSide: 1 },
