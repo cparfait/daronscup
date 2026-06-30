@@ -29,20 +29,17 @@ function PointsBadge({ points, live }: { points: number | null; live: boolean })
 }
 
 /**
- * Style d'une cellule de prono. Le vert signale UNIQUEMENT un bon résultat
- * (points > 0) — surtout pas l'identité du joueur, sinon on confond « c'est toi »
- * avec « bon prono ». Vert plein = score exact, vert simple = bon résultat,
- * pointillé = match en direct (points encore provisoires), neutre = pas de point.
+ * Style d'une cellule de prono. Contour VERT = bon résultat (points > 0). Vert
+ * plein (+ ⭐) = score exact. Le vert signale le prono réussi, pas l'identité du
+ * joueur. Pointillé = match en direct (points provisoires), neutre = pas de point.
+ * Vert littéral #22c55e pour rester vert dans tous les thèmes (le thème France
+ * passe `--color-pitch` en bleu).
  */
 function cellClass(points: number | null, live: boolean, isExact: boolean) {
   if (points !== null && points > 0) {
-    if (isExact)
-      return live
-        ? "border-2 border-dashed border-[var(--color-pitch-bright)] bg-[var(--color-pitch)]/[0.12]"
-        : "border-2 border-[var(--color-pitch-bright)] bg-[var(--color-pitch)]/[0.12]";
-    return live
-      ? "border border-dashed border-[var(--color-pitch-bright)]/70 bg-[var(--color-pitch)]/[0.06]"
-      : "border border-[var(--color-pitch-bright)]/70 bg-[var(--color-pitch)]/[0.07]";
+    const border = live ? "border-2 border-dashed" : "border-2";
+    if (isExact) return `${border} border-[#22c55e] bg-[#22c55e]/20`;
+    return `${border} border-[#22c55e]/70 bg-[#22c55e]/[0.10]`;
   }
   return "border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)]";
 }
@@ -155,10 +152,13 @@ export default async function ComparePage({
       {data.rows.length > 0 && (
         <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block size-3 rounded-[3px] border border-[var(--color-pitch-bright)]/70 bg-[var(--color-pitch)]/[0.07]" />
-            Vert = prono qui a marqué des points
+            <span className="inline-block size-3 rounded-[3px] border-2 border-[#22c55e]/70 bg-[#22c55e]/[0.10]" />
+            Contour vert = bon résultat
           </span>
-          <span className="flex items-center gap-1">⭐ Score exact</span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-3 rounded-[3px] border-2 border-[#22c55e] bg-[#22c55e]/20" />
+            ⭐ Score exact
+          </span>
         </p>
       )}
 
