@@ -10,7 +10,7 @@ import { prisma } from "./prisma";
 import { countryCode } from "./flags";
 import { computePoints, CHAMPION_BONUS } from "./scoring";
 import { compareRanked } from "./ranking";
-import { postMatchRecaps, postMatchCorrection } from "./match-recap";
+import { postMatchRecaps } from "./match-recap";
 import type { Stage } from "./data/matches";
 
 const BASE_URL = "https://api.football-data.org/v4";
@@ -354,11 +354,8 @@ export async function applyMatchResult(
   const priorResult = await prisma.result.findUnique({ where: { matchId } });
   const justFinished = priorResult?.status !== "FINISHED";
   const penaltyWinner = opts.penaltyWinner ?? null;
-  const resultChanged =
-    priorResult?.status === "FINISHED" &&
-    (priorResult.homeScore !== homeScore ||
-      priorResult.awayScore !== awayScore ||
-      (priorResult as { penaltyWinner?: string | null }).penaltyWinner !== penaltyWinner);
+  const samePenalty =
+    (priorResult as { penaltyWinner?: string | null } | null)?.penaltyWinner === penaltyWinner;
 
   // Fast-path pour la sync auto (toutes les 90 s en live) : si ce résultat est
   // déjà enregistré à l'identique et qu'aucun prono n'attend de points, il n'y
@@ -368,7 +365,8 @@ export async function applyMatchResult(
     if (
       priorResult?.status === "FINISHED" &&
       priorResult.homeScore === homeScore &&
-      priorResult.awayScore === awayScore
+      priorResult.awayScore === awayScore &&
+      samePenalty // un vainqueur aux tirs au but arrivé après coup doit être appliqué
     ) {
       const pending = await prisma.prediction.count({
         where: { matchId, pointsAwarded: null },
@@ -527,17 +525,6 @@ export async function applyMatchResult(
   if (justFinished) {
     await postMatchRecaps(matchId).catch((e) =>
       console.error("[recap] ignoré:", e instanceof Error ? e.message : e)
-    );
-  }
-
-  // Correction : si le résultat FINISHED change (ex. API foot qui se corrige),
-  // on poste un message dans le chat pour prévenir les joueurs.
-  if (resultChanged) {
-    await postMatchCorrection(matchId, {
-      oldHome: priorResult!.homeScore,
-      oldAway: priorResult!.awayScore,
-    }).catch((e) =>
-      console.error("[correction] ignoré:", e instanceof Error ? e.message : e)
     );
   }
 

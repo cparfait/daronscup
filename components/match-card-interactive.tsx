@@ -252,12 +252,14 @@ export function MatchCardInteractive({
             name={match.homeTeam}
             score={refScore?.homeScore}
             live={!!live}
+            penaltyWin={finished && match.result?.penaltyWinner === "home"}
           />
           <ReadOnlyRow
             flag={match.awayFlag}
             name={match.awayTeam}
             score={refScore?.awayScore}
             live={!!live}
+            penaltyWin={finished && match.result?.penaltyWinner === "away"}
           />
           <div className="flex items-center justify-between border-t border-[var(--color-border-subtle)] pt-2 text-xs">
             {prediction ? (
@@ -466,17 +468,24 @@ function ReadOnlyRow({
   name,
   score,
   live = false,
+  penaltyWin = false,
 }: {
   flag: string;
   name: string;
   score?: number;
   live?: boolean;
+  penaltyWin?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex min-w-0 items-center gap-2">
         <Flag code={flag} team={name} className="h-5 w-7 shrink-0" />
         <span className="truncate text-sm font-medium">{name}</span>
+        {penaltyWin && (
+          <span className="shrink-0 rounded bg-[var(--color-gold)]/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--color-gold)]">
+            t.a.b.
+          </span>
+        )}
       </div>
       {score !== undefined && (
         <span

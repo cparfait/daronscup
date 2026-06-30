@@ -146,6 +146,11 @@ export default async function MatchDetailPage({
                   <div className="absolute inset-0 -z-10 rounded-full bg-[var(--color-pitch)] opacity-10 blur-xl" />
                 </div>
               )}
+              {finished && match.result?.penaltyWinner && (
+                <span className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-gold)]">
+                  Tirs au but&nbsp;: {match.result.penaltyWinner === "home" ? match.homeTeam : match.awayTeam}
+                </span>
+              )}
             </div>
 
             {/* Away team */}
