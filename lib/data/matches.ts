@@ -130,6 +130,8 @@ export type MatchPrediction = {
   homeScore: number;
   awayScore: number;
   joker: boolean;
+  /** Vainqueur déclaré aux tirs au but ("home" | "away") — pronos de nul en phase finale. */
+  penaltyPick?: string | null;
   comment?: string;
   /** Points (définitifs si terminé, provisoires si en cours, null sinon). */
   points: number | null;

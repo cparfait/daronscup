@@ -19,6 +19,17 @@ const BASE_URL = "https://api.football-data.org/v4";
 export const COMPETITION = process.env.FOOTBALL_DATA_COMPETITION ?? "WC";
 
 // ── Types partiels du payload /matches qui nous intéressent ──
+type FdGoals = { home: number | null; away: number | null };
+type FdScore = {
+  winner: string | null; // HOME_TEAM | AWAY_TEAM | DRAW | null
+  duration: string; // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+  // ⚠️ fullTime INCLUT les tirs au but (ex. 1-1 t.a.b. 2-3 → fullTime 3-4).
+  // Le score « réel » du match (le nul) = regularTime + extraTime.
+  fullTime: FdGoals;
+  regularTime?: FdGoals | null;
+  extraTime?: FdGoals | null;
+  penalties?: FdGoals | null;
+};
 type FdMatch = {
   id: number;
   utcDate: string;
@@ -28,13 +39,58 @@ type FdMatch = {
   matchday: number | null;
   homeTeam: { name: string | null };
   awayTeam: { name: string | null };
-  score: {
-    fullTime: { home: number | null; away: number | null };
-    penalties: { home: number | null; away: number | null } | null;
-  };
+  score: FdScore;
 };
 
 type FdMatchesResponse = { matches: FdMatch[] };
+
+/**
+ * Extrait le score « match » (90'+prolongations = le nul en cas de tirs au but)
+ * et le vainqueur aux tirs au but. football-data met le cumul AVEC les tirs dans
+ * `fullTime`, donc on s'appuie sur `regularTime`+`extraTime` (ou `fullTime` moins
+ * `penalties`) quand le match s'est joué aux tirs au but.
+ */
+function extractScore(s: FdScore): {
+  home: number | null;
+  away: number | null;
+  penaltyWinner: string | null;
+} {
+  const pen = s.penalties;
+  const shootout =
+    s.duration === "PENALTY_SHOOTOUT" || (pen?.home != null && pen?.away != null);
+
+  if (!shootout) {
+    return { home: s.fullTime.home, away: s.fullTime.away, penaltyWinner: null };
+  }
+
+  // Score réglementaire (le nul) : regularTime + extraTime, sinon fullTime − tirs.
+  let home: number | null;
+  let away: number | null;
+  if (s.regularTime?.home != null && s.regularTime?.away != null) {
+    home = s.regularTime.home + (s.extraTime?.home ?? 0);
+    away = s.regularTime.away + (s.extraTime?.away ?? 0);
+  } else if (
+    s.fullTime.home != null &&
+    s.fullTime.away != null &&
+    pen?.home != null &&
+    pen?.away != null
+  ) {
+    home = s.fullTime.home - pen.home;
+    away = s.fullTime.away - pen.away;
+  } else {
+    home = s.fullTime.home;
+    away = s.fullTime.away;
+  }
+
+  let penaltyWinner: string | null = null;
+  if (pen?.home != null && pen?.away != null) {
+    penaltyWinner = pen.home > pen.away ? "home" : "away";
+  } else if (s.winner === "HOME_TEAM" || s.winner === "AWAY_TEAM") {
+    penaltyWinner = s.winner === "HOME_TEAM" ? "home" : "away";
+  }
+
+  return { home, away, penaltyWinner };
+}
 
 async function apiFetch<T>(path: string): Promise<T> {
   const token = process.env.FOOTBALL_DATA_TOKEN;
@@ -240,16 +296,9 @@ async function runSyncMatches(
       create: matchData,
     });
 
-    // Résultat
-    const home = fd.score.fullTime.home;
-    const away = fd.score.fullTime.away;
+    // Résultat — score « match » (le nul en cas de tirs au but) + vainqueur t.a.b.
+    const { home, away, penaltyWinner } = extractScore(fd.score);
     if (fd.status === "FINISHED" && home != null && away != null) {
-      // Vainqueur aux tirs au but (matchs à élimination directe en nul à 90 min).
-      let penaltyWinner: string | null = null;
-      const pen = fd.score.penalties;
-      if (pen?.home != null && pen?.away != null && home === away) {
-        penaltyWinner = pen.home > pen.away ? "home" : "away";
-      }
       await applyMatchResult(match.id, home, away, { penaltyWinner });
       results++;
     } else if (

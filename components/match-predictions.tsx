@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Flag } from "@/components/flag";
 import { cn } from "@/lib/utils";
 import type { MatchPrediction } from "@/lib/data/matches";
 
@@ -6,9 +7,12 @@ import type { MatchPrediction } from "@/lib/data/matches";
 export function MatchPredictions({
   predictions,
   currentUserId,
+  match,
 }: {
   predictions: MatchPrediction[];
   currentUserId?: string;
+  /** Équipes du match — pour afficher le vainqueur t.a.b. choisi par le joueur. */
+  match?: { homeTeam: string; awayTeam: string; homeFlag: string; awayFlag: string };
 }) {
   if (predictions.length === 0) {
     return (
@@ -50,6 +54,18 @@ export function MatchPredictions({
                   </span>
                 )}
               </div>
+              {p.penaltyPick && match && (
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--color-muted)]">
+                  <span className="shrink-0">T.a.b.&nbsp;:</span>
+                  <Flag
+                    code={p.penaltyPick === "home" ? match.homeFlag : match.awayFlag}
+                    className="h-2.5 w-[18px] shrink-0 rounded-[2px]"
+                  />
+                  <span className="truncate font-medium text-[var(--color-cream)]/80">
+                    {p.penaltyPick === "home" ? match.homeTeam : match.awayTeam}
+                  </span>
+                </span>
+              )}
               {p.comment && (
                 <p className="mt-0.5 truncate text-xs italic text-[var(--color-muted)]">
                   « {p.comment} »

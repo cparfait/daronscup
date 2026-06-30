@@ -224,6 +224,12 @@ export default async function MatchDetailPage({
           <MatchPredictions
             predictions={predictions}
             currentUserId={session?.user?.id}
+            match={{
+              homeTeam: match.homeTeam,
+              awayTeam: match.awayTeam,
+              homeFlag: match.homeFlag,
+              awayFlag: match.awayFlag,
+            }}
           />
         ) : (
           /* ── Open: show prediction form ── */

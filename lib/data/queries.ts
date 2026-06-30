@@ -591,24 +591,32 @@ export async function getMatchPredictions(
       result && (result.status === "FINISHED" || result.status === "LIVE");
     const live = result?.status === "LIVE";
 
+    const penaltyWinner = (result as { penaltyWinner?: string | null } | null)?.penaltyWinner ?? null;
+
     return preds
-      .map((p) => ({
-        userId: p.userId,
-        name: p.user.name ?? "Anonyme",
-        homeScore: p.homeScore,
-        awayScore: p.awayScore,
-        joker: p.joker,
-        comment: p.comment ?? undefined,
-        points: scored
-          ? computePoints(
-              { homeScore: p.homeScore, awayScore: p.awayScore },
-              { homeScore: result!.homeScore, awayScore: result!.awayScore },
-              p.joker,
-              { home: match?.oddsHome, draw: match?.oddsDraw, away: match?.oddsAway }
-            ).points
-          : null,
-        live: !!live,
-      }))
+      .map((p) => {
+        const penaltyPick = (p as { penaltyPick?: string | null }).penaltyPick ?? null;
+        return {
+          userId: p.userId,
+          name: p.user.name ?? "Anonyme",
+          homeScore: p.homeScore,
+          awayScore: p.awayScore,
+          joker: p.joker,
+          penaltyPick,
+          comment: p.comment ?? undefined,
+          points: scored
+            ? computePoints(
+                { homeScore: p.homeScore, awayScore: p.awayScore },
+                { homeScore: result!.homeScore, awayScore: result!.awayScore },
+                p.joker,
+                { home: match?.oddsHome, draw: match?.oddsDraw, away: match?.oddsAway },
+                penaltyPick,
+                penaltyWinner
+              ).points
+            : null,
+          live: !!live,
+        };
+      })
       .sort((a, b) => (b.points ?? -1) - (a.points ?? -1));
   } catch {
     return [];
