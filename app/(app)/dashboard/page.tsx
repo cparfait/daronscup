@@ -30,6 +30,7 @@ import {
 import { getActiveSeason, hasTwoLeggedTies, isKnockoutStage } from "@/lib/season";
 import { SeasonLogo } from "@/components/season-logo";
 import { matchLabel } from "@/lib/matchday";
+import { buildBettingScope, isBettableMatch } from "@/lib/betting";
 import { cn, formatKickoffTime } from "@/lib/utils";
 
 export const metadata = { title: "Hub \u00b7 DaronsFC" };
@@ -90,8 +91,13 @@ export default async function DashboardPage() {
         new Date(m.kickoffAt).getTime() <= now
     )
     .sort((a, b) => +new Date(b.kickoffAt) - +new Date(a.kickoffAt))[0];
+  // À venir ET ouvert aux pronos : inutile de mettre en avant un match sur
+  // lequel le joueur ne peut pas parier (cf. lib/betting.ts).
+  const scope = buildBettingScope(season, matches);
   const upcoming = matches
-    .filter((m) => new Date(m.kickoffAt).getTime() > now)
+    .filter(
+      (m) => new Date(m.kickoffAt).getTime() > now && isBettableMatch(m, scope)
+    )
     .sort((a, b) => +new Date(a.kickoffAt) - +new Date(b.kickoffAt));
   const lastPlayed = matches
     .filter((m) => m.result)

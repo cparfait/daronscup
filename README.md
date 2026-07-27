@@ -47,6 +47,7 @@ L'appli suit **une compétition active à la fois**. Tout ce qui est propre à u
 | Saison | Format | Emblèmes | Jokers |
 |---|---|---|:---:|
 | `CL-2026-2027` — Ligue des Champions 2026/2027 | Phase de ligue à 36 clubs (8 journées) → barrages → finale, tours en **aller-retour** sauf la finale | écussons de clubs | 8 / 4 |
+| *(pronos limités aux clubs français tant qu'il en reste — voir ci-dessous)* | | | |
 | `WC-2026` — Coupe du Monde 2026 *(archivée)* | Poules A→L → 16èmes → finale, matchs secs | drapeaux de nations | 4 / 2 |
 
 Les particularités du format sont prises en compte de bout en bout :
@@ -55,6 +56,16 @@ Les particularités du format sont prises en compte de bout en bout :
 - **Aller-retour** — les deux manches sont pronostiquées séparément ; le tableau final affiche le **score cumulé**, qui qualifie. Sur une manche, un nul est un résultat normal : on ne demande le vainqueur aux tirs au but **qu'en finale** (match sec).
 - **Journées** — la clé d'une journée combine l'étape et le numéro, car en C1 les manches aller/retour portent `matchday` 1 et 2, qui collisionneraient avec les journées 1 et 2 de la phase de ligue.
 - **Cotes** — l'appariement avec The Odds API se fait par code drapeau pour les sélections, et par **clé canonique de nom de club** sinon (« FC Bayern München » ↔ « Bayern Munich », cf. `lib/teams.ts`).
+
+### Périmètre de pari
+
+Une phase de ligue de C1, c'est **144 matchs** : injouable pour une bande de potes. Tant qu'un club d'un pays « suivi » (`Season.focusCountries`, réglé à `FRA` + `MCO` — l'AS Monaco est un club de Ligue 1 que football-data classe sous la principauté) est en lice, **seuls ses matchs sont pronosticables**. Dès qu'ils sont tous éliminés, tout s'ouvre — il reste alors peu d'affiches.
+
+Sur l'édition 2025/26 (Marseille, PSG, Monaco), ça donne **33 matchs pronosticables sur 189** : 24 en phase de ligue (3 clubs × 8 journées) puis 2 par tour.
+
+La règle exacte (`lib/betting.ts`) : un match est pronosticable s'il implique un club suivi, **ou** si son coup d'envoi est postérieur au dernier match connu d'un club suivi. Cette formulation est stable dans le temps — un simple « reste-t-il un club français ? » basculerait d'un coup et rendrait rétroactivement pronosticables des matchs déjà joués, ce qui fausserait les badges de journée.
+
+Le verrou est côté serveur (`POST /api/predictions`), l'onglet **Matchs** ne liste que les affiches ouvertes (avec un bandeau expliquant combien sont masquées), et le badge « L'Assidu » ne compte que les matchs pronosticables d'une journée. Liste vide = aucune restriction (cas de la Coupe du Monde).
 
 ### Basculer de saison
 

@@ -29,6 +29,12 @@ export type Season = {
   competition: string;
   apiSeason: string | null;
   oddsSport: string | null;
+  /**
+   * Codes pays (football-data `area.code`) des clubs « à suivre ». Tant qu'un
+   * de ces clubs est en lice, seuls SES matchs sont pronosticables — voir
+   * lib/betting.ts. Vide = aucune restriction.
+   */
+  focusCountries: string[];
   jokerLeagueBudget: number;
   jokerKnockoutBudget: number;
   championBonus: number;
@@ -47,6 +53,7 @@ type DbSeason = {
   competition: string;
   apiSeason: string | null;
   oddsSport: string | null;
+  focusCountries: string[];
   jokerLeagueBudget: number;
   jokerKnockoutBudget: number;
   championBonus: number;
@@ -66,6 +73,7 @@ function toSeason(s: DbSeason): Season {
     competition: s.competition,
     apiSeason: s.apiSeason,
     oddsSport: s.oddsSport,
+    focusCountries: s.focusCountries,
     jokerLeagueBudget: s.jokerLeagueBudget,
     jokerKnockoutBudget: s.jokerKnockoutBudget,
     championBonus: s.championBonus,
@@ -95,6 +103,8 @@ export const WC_2026: SeasonSeed = {
   competition: "WC",
   apiSeason: "2026",
   oddsSport: "soccer_fifa_world_cup",
+  // 104 matchs mais 48 sélections : pas besoin de restreindre le périmètre.
+  focusCountries: [],
   jokerLeagueBudget: 4,
   jokerKnockoutBudget: 2,
   championBonus: 50,
@@ -112,6 +122,10 @@ export const CL_2026_2027: SeasonSeed = {
   // La saison C1 2026/27 démarre en septembre 2026 → `?season=2026` côté API.
   apiSeason: "2026",
   oddsSport: "soccer_uefa_champs_league",
+  // 144 matchs rien qu'en phase de ligue : on limite les pronos aux clubs
+  // français tant qu'il en reste (cf. lib/betting.ts). "MCO" car football-data
+  // classe l'AS Monaco sous la principauté, alors que c'est un club de Ligue 1.
+  focusCountries: ["FRA", "MCO"],
   // Format plus long que la CdM : 8 journées de phase de ligue, et jusqu'à
   // 9 matchs en phase finale (barrages → finale, en aller-retour).
   jokerLeagueBudget: 8,
@@ -136,6 +150,7 @@ const SELECT = {
   competition: true,
   apiSeason: true,
   oddsSport: true,
+  focusCountries: true,
   jokerLeagueBudget: true,
   jokerKnockoutBudget: true,
   championBonus: true,

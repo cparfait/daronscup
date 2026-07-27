@@ -16,6 +16,7 @@ import { compareRanked } from "./ranking";
 import { postMatchRecaps } from "./match-recap";
 import { matchdayKey } from "./matchday";
 import { getActiveSeason, type Season } from "./season";
+import { getBettingScope, bettableWhere } from "./betting";
 import type { Stage } from "./data/matches";
 
 const BASE_URL = "https://api.football-data.org/v4";
@@ -39,6 +40,7 @@ type FdScore = {
   penalties?: FdGoals | null;
 };
 type FdTeam = {
+  id?: number;
   name: string | null;
   /** Nom court ("PSG", "Bayern") — utilisé pour l'affichage des clubs. */
   shortName?: string | null;
@@ -62,6 +64,56 @@ type FdMatch = {
 };
 
 type FdMatchesResponse = { matches: FdMatch[] };
+
+type FdTeamsResponse = {
+  teams: { id: number; area?: { code?: string | null } | null }[];
+};
+
+// Table équipe → code pays, par (compétition, édition). Rafraîchie au plus
+// toutes les 12 h : le plateau d'une compétition ne bouge pas en cours de
+// saison, et ça évite un appel API à chaque cycle de synchro (limite 10/min).
+const TEAM_COUNTRY_TTL_MS = 12 * 60 * 60_000;
+const teamCountryCache = new Map<
+  string,
+  { at: number; byTeamId: Map<number, string> }
+>();
+
+/**
+ * Code pays de chaque équipe d'une compétition (`area.code` : "FRA", "ENG"…).
+ * Sert à restreindre les pronos aux clubs suivis (cf. lib/betting.ts).
+ * En cas d'échec, renvoie une table vide : la synchro continue sans les pays
+ * plutôt que d'échouer entièrement.
+ */
+async function fetchTeamCountries(
+  competition: string,
+  apiSeason: string | null
+): Promise<Map<number, string>> {
+  const key = `${competition}:${apiSeason ?? "current"}`;
+  const cached = teamCountryCache.get(key);
+  if (cached && Date.now() - cached.at < TEAM_COUNTRY_TTL_MS) {
+    return cached.byTeamId;
+  }
+
+  const query = apiSeason ? `?season=${apiSeason}` : "";
+  try {
+    const data = await apiFetch<FdTeamsResponse>(
+      `/competitions/${competition}/teams${query}`
+    );
+    const byTeamId = new Map<number, string>();
+    for (const t of data.teams ?? []) {
+      if (t.area?.code) byTeamId.set(t.id, t.area.code);
+    }
+    teamCountryCache.set(key, { at: Date.now(), byTeamId });
+    return byTeamId;
+  } catch (e) {
+    console.warn(
+      "[sync] pays des équipes indisponibles:",
+      e instanceof Error ? e.message : e
+    );
+    // On garde l'ancienne table si on en a une, sinon vide.
+    return cached?.byTeamId ?? new Map();
+  }
+}
 
 /**
  * Extrait le score « match » (90'+prolongations = le nul en cas de tirs au but)
@@ -348,6 +400,13 @@ async function runSyncMatches(): Promise<{ matches: number; results: number }> {
     throw err;
   }
 
+  // Table équipe → pays, pour renseigner `Match.homeCountry` / `awayCountry`.
+  // Inutile pour une compétition de sélections : le drapeau suffit.
+  const teamCountries =
+    season.kind === "CLUBS"
+      ? await fetchTeamCountries(season.competition, season.apiSeason)
+      : new Map<number, string>();
+
   let results = 0;
 
   for (const fd of data.matches) {
@@ -362,6 +421,8 @@ async function runSyncMatches(): Promise<{ matches: number; results: number }> {
       awayTeam: teamName(fd.awayTeam, season.kind),
       homeFlag: teamEmblem(fd.homeTeam, season.kind),
       awayFlag: teamEmblem(fd.awayTeam, season.kind),
+      homeCountry: fd.homeTeam.id ? (teamCountries.get(fd.homeTeam.id) ?? null) : null,
+      awayCountry: fd.awayTeam.id ? (teamCountries.get(fd.awayTeam.id) ?? null) : null,
       kickoffAt: new Date(fd.utcDate),
       stage: mapStage(fd.stage, season.kind),
       group: mapGroup(fd.group),
@@ -915,10 +976,19 @@ async function checkAndAwardBadges(
   }
 
   // ── assidu : tous les matchs d'une journée pronostiqués ──
+  // On ne compte que les matchs PRONOSTICABLES : quand le périmètre est réduit
+  // aux clubs français, exiger les 18 matchs d'une journée rendrait le badge
+  // inatteignable (cf. lib/betting.ts).
+  const scope = await getBettingScope(seasonId);
   for (const dayPreds of byDay.values()) {
     const sample = dayPreds[0]!.match;
     const total = await prisma.match.count({
-      where: { seasonId, stage: sample.stage, matchday: sample.matchday },
+      where: {
+        seasonId,
+        stage: sample.stage,
+        matchday: sample.matchday,
+        ...bettableWhere(scope),
+      },
     });
     if (total >= 2 && dayPreds.length >= total) {
       shouldHave.add("assidu");

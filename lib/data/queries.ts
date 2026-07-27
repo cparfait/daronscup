@@ -44,6 +44,8 @@ type DbMatch = {
   awayTeam: string;
   homeFlag: string;
   awayFlag: string;
+  homeCountry: string | null;
+  awayCountry: string | null;
   kickoffAt: Date;
   stage: Match["stage"];
   group: string | null;
@@ -62,6 +64,8 @@ function toUiMatch(m: DbMatch): Match {
     awayTeam: m.awayTeam,
     homeFlag: m.homeFlag,
     awayFlag: m.awayFlag,
+    homeCountry: m.homeCountry,
+    awayCountry: m.awayCountry,
     kickoffAt: m.kickoffAt.toISOString(),
     stage: m.stage,
     group: m.group,

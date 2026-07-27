@@ -13,6 +13,7 @@ import {
   isKnockoutStage,
   needsPenaltyPick,
 } from "@/lib/season";
+import { buildBettingScope, isBettableMatch } from "@/lib/betting";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Matchs · DaronsFC" };
@@ -39,9 +40,16 @@ export default async function MatchesPage() {
     auth(),
     getActiveSeason(),
   ]);
-  // Onglet « Matchs » = uniquement les matchs à venir (pas encore commencés).
+  // Onglet « Matchs » = uniquement les matchs à venir (pas encore commencés)…
   const now = Date.now();
-  const matches = allMatches.filter((m) => new Date(m.kickoffAt).getTime() > now);
+  const upcoming = allMatches.filter((m) => new Date(m.kickoffAt).getTime() > now);
+
+  // …et, en Ligue des Champions, uniquement ceux ouverts aux pronos : tant
+  // qu'un club français est en lice, on ne parie que sur ses matchs. Les autres
+  // ne sont pas listés ici (ils restent visibles dans « Résultats »).
+  const scope = buildBettingScope(season, allMatches);
+  const matches = upcoming.filter((m) => isBettableMatch(m, scope));
+  const hidden = upcoming.length - matches.length;
   const days = groupByDay(matches);
   const twoLegged = hasTwoLeggedTies(season);
   const budgets = seasonBudgets(season);
@@ -97,6 +105,27 @@ export default async function MatchesPage() {
         action={<KnockoutInfoModal hasKnockout={hasKnockout} twoLegged={twoLegged} />}
       />
 
+      {/* ── Bulle : périmètre réduit aux clubs français ── */}
+      {hidden > 0 && (
+        <Card className="glass mb-4 flex items-start gap-3 border-[var(--color-pitch)]/30 bg-[var(--color-pitch)]/[0.06] p-3.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)]/15 text-lg">
+            🇫🇷
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[var(--color-cream)]">
+              On parie sur les clubs français
+            </p>
+            <p className="text-xs leading-relaxed text-[var(--color-muted)]">
+              {hidden} autre{hidden > 1 ? "s" : ""} match
+              {hidden > 1 ? "s" : ""} à venir {hidden > 1 ? "ne sont" : "n'est"}{" "}
+              pas ouvert{hidden > 1 ? "s" : ""} aux pronos — sinon ça ferait bien
+              trop de matchs. Dès que les clubs français seront éliminés, tout
+              s&apos;ouvrira.
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* ── Bulle : matchs sans prono ── */}
       {unpredicted > 0 ? (
         <Card className="glass mb-6 flex items-center gap-3 border-[var(--color-gold)]/30 bg-[var(--color-gold)]/[0.06] p-3.5">
@@ -125,9 +154,24 @@ export default async function MatchesPage() {
       {matches.length === 0 && (
         <Card className="glass p-8 text-center">
           <p className="text-sm text-[var(--color-muted)]">
-            Aucun match à venir. Direction l&apos;onglet{" "}
-            <span className="font-semibold text-[var(--color-cream)]">Résultats</span>{" "}
-            pour les matchs passés. ⚽
+            {hidden > 0 ? (
+              <>
+                Aucun match de club français à venir pour l&apos;instant. Les
+                autres affiches restent visibles dans l&apos;onglet{" "}
+                <span className="font-semibold text-[var(--color-cream)]">
+                  Résultats
+                </span>
+                . ⚽
+              </>
+            ) : (
+              <>
+                Aucun match à venir. Direction l&apos;onglet{" "}
+                <span className="font-semibold text-[var(--color-cream)]">
+                  Résultats
+                </span>{" "}
+                pour les matchs passés. ⚽
+              </>
+            )}
           </p>
         </Card>
       )}

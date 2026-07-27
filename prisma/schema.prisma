@@ -43,6 +43,12 @@ model Season {
   oddsSport   String?
 
   // ── Règles du jeu propres à la saison ──
+  // Codes pays (football-data `area.code`) des clubs « à suivre ». Tant qu'au
+  // moins un de ces clubs est en lice, on ne peut pronostiquer QUE ses matchs —
+  // ça évite de noyer les joueurs sous 144 matchs de phase de ligue. Dès qu'ils
+  // sont tous éliminés, tous les matchs s'ouvrent. Liste vide = aucune
+  // restriction (cas de la Coupe du Monde).
+  focusCountries      String[] @default([])
   jokerLeagueBudget   Int @default(4) // poules / phase de ligue
   jokerKnockoutBudget Int @default(2) // phase à élimination directe
   championBonus       Int @default(50)
@@ -142,6 +148,11 @@ model Match {
   // Le composant <Flag> gère les deux (cf. lib/flags.ts → `isCrestUrl`).
   homeFlag    String
   awayFlag    String
+  // Code pays de chaque équipe (football-data `area.code` : "FRA", "ENG"…),
+  // renseigné à la synchro. Sert à restreindre les pronos aux clubs suivis
+  // (cf. `Season.focusCountries`). Null pour les données d'avant cette règle.
+  homeCountry String?
+  awayCountry String?
   kickoffAt   DateTime
   stage       Stage
   group       String?

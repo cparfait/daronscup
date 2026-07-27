@@ -651,6 +651,13 @@ function SeasonsPanel({ seasons }: { seasons: Season[] }) {
                 champion +{active.championBonus}
                 {active.closedAt ? " · archivée" : ""}
               </p>
+              {active.focusCountries.length > 0 && (
+                <p className="mt-1 text-xs text-[var(--color-pitch-bright)]">
+                  Pronos limités aux clubs{" "}
+                  {active.focusCountries.join(", ")} tant qu&apos;il en reste en
+                  lice
+                </p>
+              )}
             </>
           ) : (
             <p className="text-[var(--color-muted)]">Aucune saison active.</p>

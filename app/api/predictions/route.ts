@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
 import { getActiveSeason, needsPenaltyPick } from "@/lib/season";
+import { getBettingScope, isBettableMatch } from "@/lib/betting";
 
 const bodySchema = z.object({
   matchId: z.string().min(1),
@@ -21,6 +22,7 @@ const bodySchema = z.object({
  *  - Authentification requise.
  *  - Verrou serveur : rejet si `kickoffAt` (UTC) est déjà passé.
  *  - Match hors de la saison en cours : rejeté (une archive est en lecture seule).
+ *  - Match hors du périmètre de pari (clubs suivis) : rejeté — cf. lib/betting.ts.
  *  - Joker : budget par phase, défini par la saison (cf. lib/jokers.ts).
  *  - Vainqueur aux tirs au but : ignoré là où il n'a pas de sens (manche d'une
  *    confrontation aller-retour, où un nul est un résultat normal).
@@ -70,6 +72,19 @@ export async function POST(req: Request) {
   if (season && match.seasonId && match.seasonId !== season.id) {
     return NextResponse.json(
       { error: "Ce match appartient à une saison terminée." },
+      { status: 403 }
+    );
+  }
+
+  // ── Périmètre de pari : tant qu'un club français est en lice, on ne parie
+  // que sur ses matchs (évite de noyer les joueurs sous la phase de ligue) ──
+  const scope = await getBettingScope(match.seasonId);
+  if (!isBettableMatch(match, scope)) {
+    return NextResponse.json(
+      {
+        error:
+          "Ce match n'est pas ouvert aux pronos : tant qu'un club français est en lice, seuls ses matchs comptent.",
+      },
       { status: 403 }
     );
   }

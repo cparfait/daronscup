@@ -18,6 +18,7 @@ import {
   needsPenaltyPick,
 } from "@/lib/season";
 import { matchLabel } from "@/lib/matchday";
+import { getBettingScope, isBettableMatch } from "@/lib/betting";
 import { formatKickoff } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,11 @@ export default async function MatchDetailPage({
 
   const kickoff = new Date(match.kickoffAt);
   const locked = Date.now() >= kickoff.getTime();
+  // Hors périmètre : match visible, mais pas pronosticable (clubs suivis).
+  const bettable = isBettableMatch(
+    match,
+    await getBettingScope(season?.id ?? null)
+  );
   const finished = match.result?.status === "FINISHED";
   const live = match.live;
   const group = matchLabel(
@@ -222,7 +228,9 @@ export default async function MatchDetailPage({
         <div className="mb-4 flex items-center gap-3">
           <div className="h-5 w-1 rounded-full bg-[var(--color-gold)]" />
           <h2 className="flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-bold">
-            {locked ? (
+            {!locked && !bettable ? (
+              "Pronos fermés"
+            ) : locked ? (
               <>
                 <Users className="size-4 text-[var(--color-muted)]" />
                 Pronos des joueurs
@@ -238,7 +246,17 @@ export default async function MatchDetailPage({
           </h2>
         </div>
 
-        {locked ? (
+        {!locked && !bettable ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-muted)]">
+            <span className="text-lg leading-none">🇫🇷</span>
+            <p className="leading-relaxed">
+              Ce match n&apos;est pas ouvert aux pronos. Tant qu&apos;un club
+              français est en lice, on ne parie que sur ses matchs — ça évite
+              d&apos;avoir la phase de ligue entière à remplir. Tout
+              s&apos;ouvrira dès qu&apos;ils seront éliminés.
+            </p>
+          </div>
+        ) : locked ? (
           <MatchPredictions
             predictions={predictions}
             currentUserId={session?.user?.id}

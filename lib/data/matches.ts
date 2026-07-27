@@ -57,6 +57,9 @@ export type Match = {
   awayTeam: string;
   homeFlag: string;
   awayFlag: string;
+  /** Code pays de l'équipe ("FRA", "ENG"…) — sert au périmètre de pari. */
+  homeCountry?: string | null;
+  awayCountry?: string | null;
   kickoffAt: string;
   stage: Stage;
   group: string | null;
