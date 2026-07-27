@@ -92,6 +92,21 @@ La nouvelle saison démarre **sans groupe** : chacun recrée sa bande depuis l'o
 
 > ℹ️ Entre deux saisons, l'API ne publie pas encore le calendrier (la phase de ligue de C1 est tirée au sort fin août). La synchro l'annonce calmement (`calendrier CL 2026 pas encore publié`) et retentera à chaque cycle — rien à faire.
 
+## 🧪 Jeu de test
+
+La console admin (panneau **🧪 Jeu de test**) remplit l'app de données fictives en un clic, et les purge en un autre. Utile pour éprouver le classement, les duels, les récaps, le tableau final ou le périmètre des pronos sans attendre le prochain match.
+
+L'isolation repose sur deux clés, pas sur une convention de nommage fragile :
+
+- tout le contenu vit dans une **saison dédiée** (`TEST-DATA`) ;
+- les joueurs fictifs portent le domaine réservé `@test.daronsfc.local`.
+
+La purge ne cible que ces deux choses, donc **les données réelles ne sont jamais référencées** — la Coupe du Monde archivée (matchs, pronos, groupes, palmarès) et la saison en cours sont hors de portée. La saison réelle est réactivée automatiquement, et les agrégats (points, badges) recalculés depuis ses vrais résultats.
+
+Le jeu contient 21 matchs sur 12 clubs (avec leurs vrais écussons) : 2 journées de phase de ligue jouées, une à venir, des barrages en **aller-retour** dont un départagé aux tirs au but, une finale, des cotes figées, 4 joueurs aux profils contrastés (du crack au désastre), des pronostics, des réactions, un enjeu de saison et les récaps automatiques dans le tchat.
+
+> ⚠️ La saison de test devient **active** à l'injection : l'app affiche donc les données fictives jusqu'à la purge. La compétition est volontairement inconnue de l'API (`TEST`), pour qu'une synchro ne puisse jamais écraser ces matchs fabriqués.
+
 ## 🧮 Le barème (façon MPP, indexé sur les cotes)
 
 Les points d'un **bon résultat** suivent la difficulté du match : **`R`** vaut de **1 pt** (grand favori) à **6 pts** (gros exploit) selon la cote 1X2 figée avant le coup d'envoi. Plus l'issue est improbable, plus elle rapporte — l'audace paie.

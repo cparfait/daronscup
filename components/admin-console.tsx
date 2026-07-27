@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Archive,
   PlayCircle,
+  FlaskConical,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ export function AdminConsole({
     <div className="grid gap-4">
       <PresencePanel />
       <SeasonsPanel seasons={seasons} />
+      <TestDataPanel />
       <SyncPanel />
       <InvitePanel />
       <GroupsPanel groups={groups} />
@@ -749,6 +751,125 @@ function SeasonsPanel({ seasons }: { seasons: Season[] }) {
             </Button>
           </div>
         )}
+
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Jeu de test : injection et purge ─── */
+function TestDataPanel() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+  const [status, setStatus] = useState<{
+    present: boolean;
+    active: boolean;
+    matches: number;
+    players: number;
+  } | null>(null);
+
+  const refresh = async () => {
+    try {
+      const res = await fetch("/api/admin/test-data");
+      if (res.ok) setStatus(await res.json());
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const run = (action: "seed" | "purge", confirmText: string) =>
+    start(async () => {
+      if (!confirm(confirmText)) return;
+      try {
+        const res = await fetch("/api/admin/test-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(
+          action === "seed"
+            ? `🧪 Jeu injecté : ${data.matches} matchs, ${data.players} joueurs, ${data.predictions} pronos. La saison de test est active.`
+            : `🧹 Purgé : ${data.matches} matchs, ${data.predictions} pronos, ${data.players} comptes. Saison restaurée : ${data.restoredSeason ?? "—"}.`,
+          true
+        );
+        await refresh();
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">🧪 Jeu de test</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Remplit l&apos;app de données fictives pour tout essayer : classement,
+          duels, récaps, tableau final, périmètre des pronos. Rangé dans une{" "}
+          <strong className="text-[var(--color-cream)]">saison dédiée</strong> et
+          sur des comptes réservés — la Coupe du Monde et la saison en cours ne
+          sont jamais touchées.
+        </p>
+
+        <div className="mb-3 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3 text-sm">
+          {status === null ? (
+            <p className="text-[var(--color-muted)]">Chargement…</p>
+          ) : status.present ? (
+            <p className="text-[var(--color-cream)]">
+              Jeu présent : {status.matches} matchs, {status.players} joueurs
+              fictifs{status.active ? " · saison de test ACTIVE" : ""}
+            </p>
+          ) : (
+            <p className="text-[var(--color-muted)]">Aucun jeu de test en base.</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              run(
+                "seed",
+                "Injecter le jeu de test ?\n\nUne saison « TEST-DATA » est créée avec des matchs, joueurs et pronos fictifs, et devient la saison active.\n\nTes données réelles (Coupe du Monde archivée, saison en cours) ne sont pas touchées. Un jeu déjà présent est remplacé."
+              )
+            }
+          >
+            {pending ? <Loader2 className="animate-spin" /> : <FlaskConical />}
+            Injecter le jeu de test
+          </Button>
+
+          {status?.present && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                run(
+                  "purge",
+                  "Purger le jeu de test ?\n\nLa saison « TEST-DATA », ses matchs, pronos et comptes fictifs sont supprimés, et la saison réelle redevient active.\n\nAucune donnée réelle n'est supprimée."
+                )
+              }
+            >
+              {pending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              Purger
+            </Button>
+          )}
+        </div>
 
         {msg && (
           <p
