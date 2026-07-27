@@ -110,6 +110,12 @@ export type LiveLeaderboardEntry = {
   evolution: number | null;
   /** Drapeau de l'équipe choisie comme vainqueur du tournoi (ou null). */
   championFlag: string | null;
+  /** Club de cœur du joueur (emblème + nom), ou null s'il n'en a pas choisi. */
+  favoriteTeam: { team: string; flag: string } | null;
+  /** Bons résultats consécutifs en cours (0 = série cassée). */
+  streak: number;
+  /** true si le joueur a gagné la saison archivée la plus récente. */
+  defendingChampion: boolean;
 };
 
 /** Statistiques agrégées d'un joueur (page profil). */

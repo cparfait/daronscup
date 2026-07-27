@@ -265,6 +265,32 @@ export async function openSeason(
   return { groups: 0, members: 0 };
 }
 
+/**
+ * Ids des joueurs ayant gagné (au moins) un groupe lors de la DERNIÈRE saison
+ * archivée. Sert à afficher la couronne du tenant du titre 👑 pendant toute la
+ * saison suivante. Ensemble vide s'il n'y a pas encore d'archive.
+ */
+export async function getDefendingChampions(): Promise<Set<string>> {
+  try {
+    const last = await prisma.season.findFirst({
+      where: { closedAt: { not: null }, archive: { isNot: null } },
+      orderBy: { closedAt: "desc" },
+      select: { archive: { select: { data: true } } },
+    });
+    const palmares = last?.archive?.data as SeasonPalmares | undefined;
+    if (!palmares) return new Set();
+    const ids = new Set<string>();
+    for (const g of palmares.groups) {
+      const top = g.players[0];
+      // Un « vainqueur » à 0 point n'en est pas un (groupe inactif).
+      if (top && top.points > 0) ids.add(top.userId);
+    }
+    return ids;
+  } catch {
+    return new Set();
+  }
+}
+
 /** Palmarès archivé d'une saison, ou null s'il n'a pas encore été figé. */
 export async function getPalmares(
   seasonId: string

@@ -7,12 +7,15 @@ import { EditableName } from "@/components/editable-name";
 import { PushToggle } from "@/components/push-toggle";
 import { DeleteAccountButton } from "@/components/delete-account-button";
 import { Flag } from "@/components/flag";
+import { FavoriteTeamPicker } from "@/components/favorite-team-picker";
 import {
   getBadges,
   getUserStats,
   getUserPredictions,
   getJokerUsage,
+  getChampionableTeams,
 } from "@/lib/data/queries";
+import { prisma } from "@/lib/prisma";
 import type {
   BadgeDef,
   UserStats,
@@ -46,6 +49,23 @@ export default async function ProfilePage() {
 
   // Saison en cours : le libellé du premier tour en dépend (poules / ligue).
   const season = await getActiveSeason();
+
+  // Club de cœur (décoratif) + catalogue des équipes de la compétition.
+  const [favoriteTeams, me] = await Promise.all([
+    getChampionableTeams(),
+    user?.id
+      ? prisma.user
+          .findUnique({
+            where: { id: user.id },
+            select: { favoriteTeam: true, favoriteTeamFlag: true },
+          })
+          .catch(() => null)
+      : null,
+  ]);
+  const favorite =
+    me?.favoriteTeam && me.favoriteTeamFlag
+      ? { team: me.favoriteTeam, flag: me.favoriteTeamFlag }
+      : null;
 
   let badges: BadgeDef[] = [];
   let stats: UserStats | null = null;
@@ -152,6 +172,8 @@ export default async function ProfilePage() {
         ))}
       </div>
 
+      <FavoriteTeamPicker current={favorite} teams={favoriteTeams} />
+
       {/* Lien vers le Wrapped / stats perso */}
       <Link href="/profile/stats" className="mb-6 block">
         <Card className="glass card-hover flex items-center gap-3 p-4">
@@ -164,6 +186,60 @@ export default async function ProfilePage() {
             </p>
             <p className="text-xs text-[var(--color-muted)]">
               Taux de réussite, équipe fétiche, meilleur prono…
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
+      {/* Règles du jeu — la page qui explique tout */}
+      <Link href="/regles" className="mb-6 block">
+        <Card className="glass card-hover flex items-center gap-3 border-[var(--color-pitch)]/25 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)]/15 text-lg">
+            📖
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Règles du jeu
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Barème, jokers, périmètre des pronos, duels…
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
+      {/* Duels & rivalités */}
+      <Link href="/profile/rivals" className="mb-6 block">
+        <Card className="glass card-hover flex items-center gap-3 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-3)] text-lg">
+            ⚔️
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Duels & rivalités
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Ton bilan, ton miroir, ta bête noire
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
+      {/* Musée des horreurs */}
+      <Link href="/museum" className="mb-6 block">
+        <Card className="glass card-hover flex items-center gap-3 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-danger)]/15 text-lg">
+            💀
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Musée des horreurs
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Les pires pronos du groupe, toutes saisons
             </p>
           </div>
           <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />

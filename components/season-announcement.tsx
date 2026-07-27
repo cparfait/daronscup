@@ -84,11 +84,11 @@ export function SeasonAnnouncement() {
         </p>
 
         <Link
-          href="/profile/scoring"
+          href="/regles"
           onClick={() => close(false)}
           className="mb-4 flex items-center justify-center gap-1 text-sm font-semibold text-[var(--color-gold-bright)] hover:underline"
         >
-          Comment ça marche ? <ChevronRight className="size-4" />
+          Voir les règles du jeu <ChevronRight className="size-4" />
         </Link>
 
         <label className="mb-4 flex cursor-pointer items-center justify-center gap-2 text-xs text-[var(--color-muted)]">

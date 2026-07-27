@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getSeasons } from "@/lib/season";
 import { closeSeason, openSeason } from "@/lib/season-archive";
 import { cloneGroupsToSeason } from "@/lib/groups";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Gestion des saisons (admins).
@@ -13,6 +14,7 @@ import { cloneGroupsToSeason } from "@/lib/groups";
  *   POST /api/admin/season { action: "open",   seasonId, cloneGroupsFrom? }
  *                                                             → active + remise à zéro
  *   POST /api/admin/season { action: "clone-groups", seasonId, cloneGroupsFrom }
+ *   POST /api/admin/season { action: "stake", seasonId, stake }   → enjeu du Hub
  *
  * « open » remet à zéro points, badges et paris champion : à ne lancer qu'après
  * un « close » de la saison en cours (garde-fou côté `openSeason`).
@@ -28,6 +30,11 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("clone-groups"),
     seasonId: z.string().min(1),
     cloneGroupsFrom: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("stake"),
+    seasonId: z.string().min(1),
+    stake: z.string().trim().max(160).nullable(),
   }),
 ]);
 
@@ -71,6 +78,14 @@ export async function POST(req: Request) {
         cloneGroupsFrom: parsed.data.cloneGroupsFrom ?? null,
       });
       return NextResponse.json({ ok: true, groups, members });
+    }
+
+    if (parsed.data.action === "stake") {
+      await prisma.season.update({
+        where: { id: parsed.data.seasonId },
+        data: { stake: parsed.data.stake || null },
+      });
+      return NextResponse.json({ ok: true, stake: parsed.data.stake });
     }
 
     const { groups, members } = await cloneGroupsToSeason(

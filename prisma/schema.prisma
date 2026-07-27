@@ -49,6 +49,9 @@ model Season {
   // sont tous éliminés, tous les matchs s'ouvrent. Liste vide = aucune
   // restriction (cas de la Coupe du Monde).
   focusCountries      String[] @default([])
+  // Enjeu de la saison, librement rédigé par un admin (« le dernier paie la
+  // tournée »). Affiché en permanence sur le Hub. Null = pas d'enjeu déclaré.
+  stake               String?
   jokerLeagueBudget   Int @default(4) // poules / phase de ligue
   jokerKnockoutBudget Int @default(2) // phase à élimination directe
   championBonus       Int @default(50)
@@ -92,6 +95,10 @@ model User {
   banned        Boolean      @default(false)
   createdAt     DateTime     @default(now())
   lastSeenAt    DateTime? // présence : dernier heartbeat (compte « en ligne »)
+  // Club de cœur, affiché à côté du nom au classement. `favoriteTeamFlag` suit
+  // la même convention que `Match.homeFlag` : code drapeau OU URL d'écusson.
+  favoriteTeam     String?
+  favoriteTeamFlag String?
 
   predictions   Prediction[]
   messages      Message[]

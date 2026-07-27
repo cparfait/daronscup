@@ -45,6 +45,8 @@ type MemberRow = {
   matchPts: number;
   exact: boolean;
   scored: boolean; // a marqué des points sur ce match
+  /** Prono posé (null s'il n'a pas joué ce match) — sert à la « boulette ». */
+  pred: { home: number; away: number } | null;
   after: Rankable; // classement après ce match (points figés actuels)
   before: Rankable; // classement reconstitué avant ce match
 };
@@ -75,7 +77,13 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
   });
   const breakdown = new Map<
     string,
-    { points: number; exact: boolean; correct: boolean; joker: boolean }
+    {
+      points: number;
+      exact: boolean;
+      correct: boolean;
+      joker: boolean;
+      pred: { home: number; away: number };
+    }
   >();
   for (const p of matchPreds) {
     const b = computePoints(
@@ -89,6 +97,7 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
       exact: b.exactScore,
       correct: b.correctResult,
       joker: p.joker,
+      pred: { home: p.homeScore, away: p.awayScore },
     });
   }
 
@@ -129,6 +138,7 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
         matchPts,
         exact: bd?.exact ?? false,
         scored: matchPts > 0,
+        pred: bd ? bd.pred : null,
         after: { points: pts, exactScores, correctResults, name },
         // Reconstitution de l'état AVANT ce match en retranchant sa contribution.
         before: {
@@ -145,7 +155,7 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
     // sur les matchs qu'ils ignorent.
     if (!rows.some((r) => r.predicted)) continue;
 
-    const content = buildRecap(match.homeTeam, match.awayTeam, result, rows);
+    const content = buildRecap(match.homeTeam, match.awayTeam, result, rows, matchId);
     if (!content) continue;
 
     await prisma.message.create({
@@ -169,11 +179,67 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
   }
 }
 
+/**
+ * Banque de vannes du bot, par situation. On en tire UNE de façon déterministe
+ * (graine = id du match) : le récap ne doit pas changer si quelqu'un recharge
+ * le tchat, et les deux membres d'un groupe doivent lire la même chose.
+ */
+const PUNCHLINES = {
+  /** Un joker posé et grillé. */
+  jokerFail: [
+    "Le joker, c'était censé DOUBLER les points. Pas les zéros.",
+    "Poser un joker là-dessus, il fallait oser. Il a osé.",
+    "On appelle ça investir à perte.",
+    "Le joker retourne au vestiaire, tête basse.",
+  ],
+  /** Personne n'a marqué. */
+  blank: [
+    "Une communion dans la médiocrité. C'est beau.",
+    "Zéro pour tout le monde : au moins le classement ne bouge pas.",
+    "Ce match, personne ne l'avait vu venir. Personne.",
+    "On va dire que c'était un match piège.",
+  ],
+  /** Un seul joueur a marqué des points. */
+  loneWinner: [
+    "Seul contre tous, et il avait raison.",
+    "Les autres feraient bien de recopier, la prochaine fois.",
+    "Un flair de renard. Ou un coup de chance monumental.",
+  ],
+  /** Score exact trouvé. */
+  exact: [
+    "Au but près. Suspect.",
+    "Soit c'est du talent, soit il a un cousin dans le vestiaire.",
+    "Le genre de prono qu'on ressort pendant dix ans.",
+  ],
+  /** Changement de leader. */
+  newLeader: [
+    "Le trône a changé de propriétaire.",
+    "Profites-en, ça ne dure jamais.",
+    "L'ancien leader n'a rien vu venir.",
+  ],
+  /** Grosse boulette (écart énorme). */
+  howler: [
+    "On a retrouvé le prono. Il était très loin.",
+    "Statistiquement, c'est un exploit d'être aussi à côté.",
+    "Ce prono entre directement au musée des horreurs.",
+    "Il y a des jours où il faut savoir s'abstenir.",
+  ],
+} as const;
+
+/** Tire une vanne de façon stable pour un match donné. */
+function punchline(kind: keyof typeof PUNCHLINES, seed: string): string {
+  const bank = PUNCHLINES[kind];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return bank[Math.abs(h) % bank.length]!;
+}
+
 function buildRecap(
   homeTeam: string,
   awayTeam: string,
   result: { homeScore: number; awayScore: number },
-  rows: MemberRow[]
+  rows: MemberRow[],
+  seed: string
 ): string {
   const lines: string[] = [];
 
@@ -188,14 +254,21 @@ function buildRecap(
     // ── Meilleurs pronos ──
     const exacts = rows.filter((r) => r.exact).map((r) => r.name);
     if (exacts.length > 0) {
-      lines.push(`🎯 Score exact : ${exacts.join(", ")} — chapeau !`);
+      lines.push(`🎯 Score exact : ${exacts.join(", ")} — ${punchline("exact", seed)}`);
     } else {
       const best = Math.max(...rows.map((r) => r.matchPts));
       if (best > 0) {
         const names = rows.filter((r) => r.matchPts === best).map((r) => r.name);
         lines.push(`✅ Meilleur prono : ${names.join(", ")} (+${best})`);
+        // Un seul à avoir marqué alors que d'autres avaient joué : c'est notable.
+        const scorers = rows.filter((r) => r.scored);
+        const players = rows.filter((r) => r.predicted);
+        if (scorers.length === 1 && players.length >= 3) {
+          lines.push(`🦊 ${punchline("loneWinner", seed)}`);
+        }
       } else {
         lines.push("💀 Personne n'a marqué le moindre point sur ce match !");
+        lines.push(punchline("blank", seed));
       }
     }
 
@@ -206,7 +279,33 @@ function buildRecap(
       lines.push(`🃏 ${r.name} double la mise : +${r.matchPts} pts 😎`);
     }
     for (const r of jokerFail) {
-      lines.push(`🃏 Joker grillé pour ${r.name}… 0 pt 💀`);
+      lines.push(
+        `🃏 Joker grillé pour ${r.name}… 0 pt 💀 ${punchline("jokerFail", seed)}`
+      );
+    }
+
+    // ── La boulette du jour ──
+    // Le prono le plus éloigné du score réel (somme des écarts), parmi ceux qui
+    // n'ont rien marqué. On ne l'annonce que si l'écart est vraiment gênant, et
+    // s'ils sont au moins deux à avoir joué (sinon c'est du tir sur ambulance).
+    const players = rows.filter((r) => r.predicted && r.pred);
+    if (players.length >= 2) {
+      let worst: { name: string; gap: number; pred: { home: number; away: number } } | null =
+        null;
+      for (const r of players) {
+        if (r.scored) continue;
+        const gap =
+          Math.abs(r.pred!.home - result.homeScore) +
+          Math.abs(r.pred!.away - result.awayScore);
+        if (!worst || gap > worst.gap) {
+          worst = { name: r.name, gap, pred: r.pred! };
+        }
+      }
+      if (worst && worst.gap >= 3) {
+        lines.push(
+          `🤡 Boulette du jour : ${worst.name} avait dit ${worst.pred.home}–${worst.pred.away}. ${punchline("howler", seed)}`
+        );
+      }
     }
   }
 
@@ -220,7 +319,9 @@ function buildRecap(
   const newLeader = afterSorted[0];
   const oldLeader = beforeSorted[0];
   if (newLeader && oldLeader && newLeader.id !== oldLeader.id) {
-    lines.push(`👑 Nouveau leader : ${newLeader.name} prend la tête !`);
+    lines.push(
+      `👑 Nouveau leader : ${newLeader.name} prend la tête ! ${punchline("newLeader", seed)}`
+    );
   }
 
   // ── Plus grosse remontée (hors changement de leader déjà annoncé) ──

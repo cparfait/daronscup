@@ -77,6 +77,9 @@ export default async function DashboardPage() {
   }));
 
   const myRank = leaderboard.find((u) => u.email === session.user?.email)?.rank;
+  // Le dernier du classement : c'est lui qui « paie la tournée » (cf. l'enjeu).
+  const lastPlace =
+    leaderboard.length >= 2 ? leaderboard[leaderboard.length - 1] : null;
 
   // Match « à la une » : priorité au direct (LIVE en base), puis au match
   // démarré sans result (coup d'envoi passé mais l'API n'a pas encore basculé
@@ -177,6 +180,30 @@ export default async function DashboardPage() {
 
       <HomeOnboarding />
       <SeasonAnnouncement />
+
+      {/* ── L'enjeu de la saison (déclaré par un admin) ── */}
+      {season?.stake && (
+        <Card className="glass mb-4 flex items-start gap-3 border-[var(--color-danger)]/30 bg-[var(--color-danger)]/[0.06] p-4">
+          <span className="text-2xl leading-none">🍻</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              L&apos;enjeu de la saison
+            </p>
+            <p className="mt-0.5 text-sm font-semibold leading-relaxed text-[var(--color-cream)]">
+              {season.stake}
+            </p>
+            {lastPlace && (
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                Actuellement dans le viseur :{" "}
+                <strong className="text-[var(--color-cream)]">
+                  {lastPlace.name}
+                </strong>{" "}
+                ({lastPlace.total} pts)
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {knockoutStarted && championOpen && !championPick && (
         <div className="mb-4 rounded-2xl border border-amber-500/40 bg-amber-500/[0.08] p-4">
@@ -425,6 +452,26 @@ export default async function DashboardPage() {
                 {season?.kind === "CLUBS"
                   ? "La phase de ligue et le tableau final"
                   : "Le tableau des groupes du tournoi"}
+              </p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+          </Card>
+        </Link>
+      </div>
+
+      {/* Accès aux règles — utile surtout en début de saison */}
+      <div className="mb-6 animate-stagger stagger-3">
+        <Link href="/regles" className="block">
+          <Card className="glass card-hover flex items-center gap-3 px-4 py-3.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)]/15 text-lg">
+              📖
+            </span>
+            <div className="flex-1">
+              <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+                Comment ça marche ?
+              </p>
+              <p className="text-xs text-[var(--color-muted)]">
+                Barème, jokers, sur quels matchs on parie
               </p>
             </div>
             <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />

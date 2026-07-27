@@ -15,6 +15,8 @@ import { computePoints } from "@/lib/scoring";
 import { compareRanked } from "@/lib/ranking";
 import { jokerPhase, seasonBudgets } from "@/lib/jokers";
 import { getActiveSeason, KNOCKOUT_STAGES } from "@/lib/season";
+import { getPlayersFlair } from "@/lib/fun";
+import { getDefendingChampions } from "@/lib/season-archive";
 import type {
   Match,
   StandingTeam,
@@ -504,6 +506,12 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
     if (memberIds.length === 0) return { entries: [], hasLive: false };
     const sid = await resolveSeasonId();
     if (!sid) return { entries: [], hasLive: false };
+    // Séries en cours, tenants du titre et clubs de cœur : de la garniture
+    // sociale, jamais bloquante — chaque getter a son propre repli.
+    const [flair, defending] = await Promise.all([
+      getPlayersFlair(memberIds),
+      getDefendingChampions(),
+    ]);
     const [users, liveResults] = await Promise.all([
       prisma.user.findMany({
         where: {
@@ -579,6 +587,12 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
           correctResults: u.score?.correctResults ?? 0,
           badges: u.badges.map((b) => b.badge.key),
           championFlag: u.championPick?.flag ?? null,
+          favoriteTeam:
+            u.favoriteTeam && u.favoriteTeamFlag
+              ? { team: u.favoriteTeam, flag: u.favoriteTeamFlag }
+              : null,
+          streak: flair.get(u.id)?.streak ?? 0,
+          defendingChampion: defending.has(u.id),
         };
       })
       // Tri live : même comparateur, mais sur le total (acquis + provisoire).
@@ -600,6 +614,9 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
         correctResults: e.correctResults,
         badges: e.badges,
         championFlag: e.championFlag,
+        favoriteTeam: e.favoriteTeam,
+        streak: e.streak,
+        defendingChampion: e.defendingChampion,
       }));
 
     return { entries, hasLive: liveResults.length > 0 };

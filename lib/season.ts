@@ -35,6 +35,8 @@ export type Season = {
    * lib/betting.ts. Vide = aucune restriction.
    */
   focusCountries: string[];
+  /** Enjeu de la saison, affiché sur le Hub (« le dernier paie la tournée »). */
+  stake: string | null;
   jokerLeagueBudget: number;
   jokerKnockoutBudget: number;
   championBonus: number;
@@ -54,6 +56,7 @@ type DbSeason = {
   apiSeason: string | null;
   oddsSport: string | null;
   focusCountries: string[];
+  stake: string | null;
   jokerLeagueBudget: number;
   jokerKnockoutBudget: number;
   championBonus: number;
@@ -74,6 +77,7 @@ function toSeason(s: DbSeason): Season {
     apiSeason: s.apiSeason,
     oddsSport: s.oddsSport,
     focusCountries: s.focusCountries,
+    stake: s.stake,
     jokerLeagueBudget: s.jokerLeagueBudget,
     jokerKnockoutBudget: s.jokerKnockoutBudget,
     championBonus: s.championBonus,
@@ -105,6 +109,7 @@ export const WC_2026: SeasonSeed = {
   oddsSport: "soccer_fifa_world_cup",
   // 104 matchs mais 48 sélections : pas besoin de restreindre le périmètre.
   focusCountries: [],
+  stake: null,
   jokerLeagueBudget: 4,
   jokerKnockoutBudget: 2,
   championBonus: 50,
@@ -126,6 +131,7 @@ export const CL_2026_2027: SeasonSeed = {
   // français tant qu'il en reste (cf. lib/betting.ts). "MCO" car football-data
   // classe l'AS Monaco sous la principauté, alors que c'est un club de Ligue 1.
   focusCountries: ["FRA", "MCO"],
+  stake: null,
   // Format plus long que la CdM : 8 journées de phase de ligue, et jusqu'à
   // 9 matchs en phase finale (barrages → finale, en aller-retour).
   jokerLeagueBudget: 8,
@@ -151,6 +157,7 @@ const SELECT = {
   apiSeason: true,
   oddsSport: true,
   focusCountries: true,
+  stake: true,
   jokerLeagueBudget: true,
   jokerKnockoutBudget: true,
   championBonus: true,

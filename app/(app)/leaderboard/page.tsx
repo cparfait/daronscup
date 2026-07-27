@@ -186,10 +186,37 @@ export default async function LeaderboardPage({
                 <Evolution value={user.evolution} />
               </div>
 
-              {/* Nom */}
+              {/* Nom + club de cœur + série en cours */}
               <div className="min-w-0 flex-1">
-                <p className={cn("truncate font-medium", isChampion && "font-bold")}>
-                  {user.name}
+                <p
+                  className={cn(
+                    "flex items-center gap-1.5 truncate font-medium",
+                    isChampion && "font-bold"
+                  )}
+                >
+                  {user.favoriteTeam && (
+                    <Flag
+                      code={user.favoriteTeam.flag}
+                      className="h-3.5 w-5 shrink-0"
+                    />
+                  )}
+                  <span className="truncate">{user.name}</span>
+                  {user.defendingChampion && (
+                    <span
+                      title="Tenant du titre"
+                      className="shrink-0 text-xs leading-none"
+                    >
+                      👑
+                    </span>
+                  )}
+                  {user.streak >= 3 && (
+                    <span
+                      title={`${user.streak} bons résultats d'affilée`}
+                      className="shrink-0 rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-orange-400"
+                    >
+                      🔥{user.streak}
+                    </span>
+                  )}
                 </p>
                 <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
                   {user.exactScores} exact{user.exactScores !== 1 ? "s" : ""} · {user.correctResults} bon{user.correctResults !== 1 ? "s" : ""}

@@ -39,6 +39,12 @@ Pas de données bidon : les matchs et scores viennent en direct de l'API **footb
 - 📲 **Notifications push** — résultat tombé, tu t'es fait doubler, récap… directement sur ton téléphone.
 - 📊 **Classements officiels** — la phase de ligue à 36 clubs (avec les barres de qualification 1-8 / 9-24 / 25-36) ou les poules, selon la compétition, et le tableau de la phase finale.
 - 🗄️ **Archives** — chaque saison terminée garde son palmarès figé (classement final par groupe, vainqueur, badges) et tous ses résultats.
+- 📖 **Règles du jeu** (`/regles`) — la page de référence, générée d'après la saison en cours : barème, budgets de jokers, périmètre des pronos, format de la compétition. C'est là qu'on explique ce qui n'est pas devinable depuis l'interface.
+- ⚔️ **Duels & rivalités** — à chaque journée tu affrontes un membre du groupe par rotation ; bilan tête-à-tête, « ton miroir », « ta bête noire » et « il fallait recopier X ».
+- 🔥 **Séries et couronnes** — 3 bons résultats d'affilée s'affichent au classement, et le vainqueur de la saison précédente porte un 👑.
+- ❤️ **Club de cœur** — purement décoratif, affiché à côté de ton nom.
+- 🍻 **Enjeu de saison** — une mise déclarée par un admin, affichée en permanence sur le Hub avec le nom du dernier au classement.
+- 💀 **Musée des horreurs** — les pires pronos du groupe, toutes saisons confondues.
 
 ## 🗓️ Saisons
 

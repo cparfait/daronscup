@@ -563,6 +563,7 @@ function SeasonsPanel({ seasons }: { seasons: Season[] }) {
   const active = seasons.find((s) => s.active) ?? null;
   const others = seasons.filter((s) => !s.active);
   const [target, setTarget] = useState(others[0]?.id ?? "");
+  const [stake, setStake] = useState(active?.stake ?? "");
   // Décoché par défaut : une nouvelle saison démarre sans groupe, chacun
   // recrée sa bande. À cocher seulement pour reprendre la précédente à
   // l'identique.
@@ -663,6 +664,52 @@ function SeasonsPanel({ seasons }: { seasons: Season[] }) {
             <p className="text-[var(--color-muted)]">Aucune saison active.</p>
           )}
         </div>
+
+        {/* Enjeu de la saison — affiché en permanence sur le Hub */}
+        {active && (
+          <div className="mb-4">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--color-muted)]">
+              🍻 Enjeu de la saison
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={stake}
+                onChange={(e) => setStake(e.target.value)}
+                maxLength={160}
+                placeholder="Le dernier paie la tournée…"
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm outline-none focus:border-[var(--color-pitch)]"
+              />
+              <Button
+                size="sm"
+                className="shrink-0"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    try {
+                      const res = await fetch("/api/admin/season", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          action: "stake",
+                          seasonId: active.id,
+                          stake: stake.trim() || null,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error ?? "Erreur");
+                      flash(stake.trim() ? "Enjeu enregistré 🍻" : "Enjeu retiré", true);
+                      router.refresh();
+                    } catch (e) {
+                      flash(e instanceof Error ? e.message : "Erreur", false);
+                    }
+                  })
+                }
+              >
+                {pending ? <Loader2 className="animate-spin" /> : <Check />}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Button variant="gold" size="sm" onClick={archive} disabled={pending || !active}>
