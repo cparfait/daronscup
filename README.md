@@ -33,6 +33,7 @@ Pas de données bidon : les matchs et scores viennent en direct de l'API **footb
 - 🏆 **Classement live** — points acquis + points provisoires pendant les matchs en cours, avec flèches d'évolution ▲▼.
 - 👥 **Groupes** — crée ta bande via un lien d'invitation, chacun son classement.
 - 💬 **Tchat de groupe** — messages, réactions emoji, épinglage (admin), notifications push.
+- 🤡 **Réactions sur les pronos** — après le coup d'envoi, on peut coller un emoji sur le prono d'un pote. Avant, c'est impossible : ça révélerait son choix.
 - 🤖 **Récaps automatiques** — après chaque match, un bandeau récap tombe dans le tchat : podium, meilleurs pronos, jokers gagnés/grillés, changement de leader.
 - 🎖️ **Badges** — 10 hauts faits à débloquer (voir plus bas).
 - 🇫🇷 **Thème tricolore** — sur les compétitions de sélections, l'interface passe en **bleu nuit / bleu-blanc-rouge** les jours de match des Bleus. Allez les Bleus ! 💙🤍❤️

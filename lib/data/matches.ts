@@ -159,8 +159,13 @@ export type ComparisonRow = {
   mine: { homeScore: number; awayScore: number; joker: boolean; points: number | null } | null;
 };
 
+/** Une réaction emoji agrégée (compte + est-ce que J'AI réagi). */
+export type ReactionTally = { emoji: string; count: number; reacted: boolean };
+
 /** Pronostic d'un joueur sur un match donné (vue publique après coup d'envoi). */
 export type MatchPrediction = {
+  /** Id du pronostic — nécessaire pour y accrocher une réaction. */
+  id: string;
   userId: string;
   name: string;
   homeScore: number;
@@ -173,6 +178,8 @@ export type MatchPrediction = {
   points: number | null;
   /** true si les points sont provisoires (match en cours). */
   live: boolean;
+  /** Réactions emoji posées par le groupe sur ce prono. */
+  reactions: ReactionTally[];
 };
 
 /** Message du tchat. */

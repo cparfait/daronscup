@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
+import { PredictionReactions } from "@/components/prediction-reactions";
 import { cn } from "@/lib/utils";
 import type { MatchPrediction } from "@/lib/data/matches";
 
@@ -8,11 +9,14 @@ export function MatchPredictions({
   predictions,
   currentUserId,
   match,
+  readOnly = false,
 }: {
   predictions: MatchPrediction[];
   currentUserId?: string;
   /** Équipes du match — pour afficher le vainqueur t.a.b. choisi par le joueur. */
   match?: { homeTeam: string; awayTeam: string; homeFlag: string; awayFlag: string };
+  /** Lecture seule : pas de réaction possible (admin hors de son groupe). */
+  readOnly?: boolean;
 }) {
   if (predictions.length === 0) {
     return (
@@ -32,10 +36,11 @@ export function MatchPredictions({
           <Card
             key={p.userId}
             className={cn(
-              "flex items-center gap-3 p-3",
+              "p-3",
               isMe && "border-[var(--color-pitch)]/40 bg-[var(--color-pitch)]/[0.05]"
             )}
           >
+            <div className="flex items-center gap-3">
             <span className="w-5 shrink-0 text-center font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
               {i + 1}
             </span>
@@ -96,6 +101,14 @@ export function MatchPredictions({
                 {p.live ? " prov" : " pts"}
               </span>
             )}
+            </div>
+
+            {/* Chambrage : réactions emoji sur le prono */}
+            <PredictionReactions
+              predictionId={p.id}
+              reactions={p.reactions}
+              readOnly={readOnly}
+            />
           </Card>
         );
       })}

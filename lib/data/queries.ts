@@ -632,7 +632,9 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
  */
 export async function getMatchPredictions(
   matchId: string,
-  memberIds?: string[]
+  memberIds?: string[],
+  /** Utilisateur courant — pour savoir quelles réactions sont les siennes. */
+  viewerId?: string
 ): Promise<MatchPrediction[]> {
   try {
     if (memberIds && memberIds.length === 0) return [];
@@ -646,7 +648,10 @@ export async function getMatchPredictions(
           matchId,
           ...(memberIds ? { userId: { in: memberIds } } : {}),
         },
-        include: { user: { select: { id: true, name: true } } },
+        include: {
+          user: { select: { id: true, name: true } },
+          reactions: { select: { emoji: true, userId: true } },
+        },
         orderBy: { submittedAt: "asc" },
       }),
     ]);
@@ -661,7 +666,16 @@ export async function getMatchPredictions(
     return preds
       .map((p) => {
         const penaltyPick = (p as { penaltyPick?: string | null }).penaltyPick ?? null;
+        // Agrégation des réactions : un emoji, son compte, et si c'est la mienne.
+        const tally = new Map<string, { count: number; reacted: boolean }>();
+        for (const r of p.reactions) {
+          const t = tally.get(r.emoji) ?? { count: 0, reacted: false };
+          t.count++;
+          if (viewerId && r.userId === viewerId) t.reacted = true;
+          tally.set(r.emoji, t);
+        }
         return {
+          id: p.id,
           userId: p.userId,
           name: p.user.name ?? "Anonyme",
           homeScore: p.homeScore,
@@ -680,6 +694,9 @@ export async function getMatchPredictions(
               ).points
             : null,
           live: !!live,
+          reactions: [...tally.entries()]
+            .map(([emoji, t]) => ({ emoji, ...t }))
+            .sort((a, b) => b.count - a.count),
         };
       })
       .sort((a, b) => (b.points ?? -1) - (a.points ?? -1));

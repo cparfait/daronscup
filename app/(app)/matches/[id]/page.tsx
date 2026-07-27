@@ -95,15 +95,19 @@ export default async function MatchDetailPage({
 
   // Après le coup d'envoi : les pronos des joueurs du groupe actif deviennent publics.
   let predictions: MatchPrediction[] = [];
+  // Lecture seule quand un admin consulte un groupe dont il n'est pas membre :
+  // il voit les pronos mais ne peut pas y réagir.
+  let readOnly = false;
   if (locked) {
     let memberIds: string[] | undefined;
     if (session?.user?.id) {
       const activeGroup = await getActiveGroup(session.user.id);
       if (activeGroup) {
         memberIds = await getGroupMemberIds(activeGroup.id);
+        readOnly = activeGroup.readOnly;
       }
     }
-    predictions = await getMatchPredictions(id, memberIds);
+    predictions = await getMatchPredictions(id, memberIds, session?.user?.id);
   }
 
   return (
@@ -266,6 +270,7 @@ export default async function MatchDetailPage({
               homeFlag: match.homeFlag,
               awayFlag: match.awayFlag,
             }}
+            readOnly={readOnly}
           />
         ) : (
           /* ── Open: show prediction form ── */

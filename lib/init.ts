@@ -88,13 +88,47 @@ async function bootstrapSystemUser(): Promise<void> {
  */
 async function bootstrapSeasons(): Promise<void> {
   for (const seed of SEASON_SEEDS) {
-    await prisma.season.upsert({
+    const existing = await prisma.season.findUnique({
       where: { code: seed.code },
-      // On ne réécrit PAS une saison existante : l'admin a pu ajuster les
-      // budgets de jokers depuis la console.
-      update: {},
-      create: seed,
+      select: {
+        id: true,
+        logo: true,
+        oddsSport: true,
+        apiSeason: true,
+        focusCountries: true,
+      },
     });
+
+    if (!existing) {
+      await prisma.season.create({ data: seed });
+      continue;
+    }
+
+    // Saison déjà en base : on NE réécrit PAS ce qui a pu être personnalisé
+    // (budgets de jokers, enjeu, bonus champion). En revanche on RENSEIGNE les
+    // champs restés à leur valeur par défaut — sinon une saison créée par un
+    // déploiement antérieur n'obtiendrait jamais les réglages ajoutés depuis
+    // (c'est ce qui laissait `focusCountries` vide, donc la limitation aux
+    // clubs français silencieusement inactive).
+    const backfill: {
+      logo?: string;
+      oddsSport?: string;
+      apiSeason?: string;
+      focusCountries?: string[];
+    } = {};
+    if (!existing.logo && seed.logo) backfill.logo = seed.logo;
+    if (!existing.oddsSport && seed.oddsSport) backfill.oddsSport = seed.oddsSport;
+    if (!existing.apiSeason && seed.apiSeason) backfill.apiSeason = seed.apiSeason;
+    if (existing.focusCountries.length === 0 && seed.focusCountries.length > 0) {
+      backfill.focusCountries = seed.focusCountries;
+    }
+
+    if (Object.keys(backfill).length > 0) {
+      await prisma.season.update({ where: { id: existing.id }, data: backfill });
+      console.log(
+        `[init] saison ${seed.code} — champs complétés : ${Object.keys(backfill).join(", ")}`
+      );
+    }
   }
 
   const wc = await prisma.season.findUnique({
