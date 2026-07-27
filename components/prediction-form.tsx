@@ -19,7 +19,12 @@ type Props = {
   locked: boolean; // calculé côté serveur (kickoff passé)
   initial?: { homeScore: number; awayScore: number; joker: boolean; penaltyPick?: string | null; comment?: string };
   jokersLeft: number; // jokers restants dans la phase (hors ce match)
-  jokerBudget: number; // budget total de la phase (4 poules / 2 finale)
+  jokerBudget: number; // budget total de la phase, propre à la saison
+  /**
+   * Demander le vainqueur aux tirs au but sur un prono de nul ? Faux sur une
+   * manche d'aller-retour, où le nul est un résultat normal (cf. lib/season.ts).
+   */
+  askPenalty?: boolean;
 };
 
 function Stepper({
@@ -78,12 +83,9 @@ function Stepper({
   );
 }
 
-const KNOCKOUT_STAGES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER", "SEMI", "THIRD_PLACE", "FINAL"]);
-
 export function PredictionForm(props: Props) {
   const router = useRouter();
-  const { locked, initial, jokersLeft, jokerBudget } = props;
-  const isKnockout = KNOCKOUT_STAGES.has(props.stage);
+  const { locked, initial, jokersLeft, jokerBudget, askPenalty = true } = props;
   const drawBonus = 2;
   const [home, setHome] = useState(initial?.homeScore ?? 0);
   const [away, setAway] = useState(initial?.awayScore ?? 0);
@@ -127,7 +129,7 @@ export function PredictionForm(props: Props) {
           homeScore: home,
           awayScore: away,
           joker,
-          penaltyPick: isKnockout && isDraw ? penaltyPick : null,
+          penaltyPick: askPenalty && isDraw ? penaltyPick : null,
           comment: comment.trim() || undefined,
         }),
       });
@@ -192,8 +194,8 @@ export function PredictionForm(props: Props) {
         />
       </div>
 
-      {/* Vainqueur aux tirs au but — affiché uniquement en phase à élimination directe quand le prono est un nul */}
-      {isKnockout && isDraw && (
+      {/* Vainqueur aux tirs au but — uniquement quand un nul doit être départagé */}
+      {askPenalty && isDraw && (
         <div className="tab-winner-glow mt-5 rounded-xl p-3">
           <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-[var(--color-muted)]">
             Qui gagne aux tirs au but ?

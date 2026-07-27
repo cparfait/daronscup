@@ -5,6 +5,8 @@ import { Flag } from "@/components/flag";
 import { auth } from "@/lib/auth";
 import { getUserPredictions, getUserStats } from "@/lib/data/queries";
 import { computePoints } from "@/lib/scoring";
+import { getActiveSeason } from "@/lib/season";
+import { seasonBudgets, firstPhaseLabel } from "@/lib/jokers";
 
 export const metadata = { title: "Barème · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -47,6 +49,11 @@ const RULES = [
 export default async function ScoringPage() {
   const session = await auth();
   const userId = session?.user?.id;
+
+  // Les budgets de jokers et le nom du premier tour dépendent de la saison.
+  const season = await getActiveSeason();
+  const budgets = seasonBudgets(season);
+  const isClubs = season?.kind === "CLUBS";
 
   // Pronostics terminés ayant rapporté des points, du plus rentable au plus
   // récent — pour montrer concrètement d'où viennent les points du joueur.
@@ -233,18 +240,20 @@ export default async function ScoringPage() {
         </p>
 
         <div className="flex flex-col gap-3">
-          {/* Poules */}
+          {/* Premier tour (poules CdM / phase de ligue C1) */}
           <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3">
             <div className="mb-1 flex items-center justify-between">
               <span className="font-semibold text-[var(--color-cream)]">
-                Phase de poules
+                {firstPhaseLabel(season)}
               </span>
               <span className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-gold)]">
-                4 jokers
+                {budgets.group} jokers
               </span>
             </div>
             <p className="text-xs text-[var(--color-muted)]">
-              Utilisables sur n&apos;importe quel match de la phase de groupes.
+              {isClubs
+                ? "Utilisables sur n'importe quel match des 8 journées."
+                : "Utilisables sur n'importe quel match de la phase de groupes."}
             </p>
           </div>
 
@@ -255,11 +264,13 @@ export default async function ScoringPage() {
                 Phase finale
               </span>
               <span className="font-[family-name:var(--font-display)] text-lg font-bold text-[var(--color-gold)]">
-                2 jokers
+                {budgets.knockout} jokers
               </span>
             </div>
             <p className="text-xs text-[var(--color-muted)]">
-              Huitièmes, quarts, demies, finale et match pour la 3ᵉ place.
+              {isClubs
+                ? "Barrages, huitièmes, quarts, demies et finale — chaque manche compte."
+                : "Huitièmes, quarts, demies, finale et match pour la 3ᵉ place."}
             </p>
           </div>
         </div>

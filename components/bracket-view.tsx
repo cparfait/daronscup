@@ -6,7 +6,11 @@ import { cn } from "@/lib/utils";
 import type { Match } from "@/lib/data/matches";
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Tableau officiel WC2026 (codé en dur)
+// VUE NATIONS — tableau officiel WC2026 (codé en dur)
+//
+// Réservé aux compétitions à matchs secs dont le tableau est connu d'avance
+// (Coupe du Monde). Les compétitions en aller-retour (Ligue des Champions)
+// passent par `ClubRoundsView`, plus bas.
 // ══════════════════════════════════════════════════════════════════════════════
 //
 // Les 16 matchs de 16es DANS L'ORDRE DU TABLEAU (pas l'ordre des dates ni des
@@ -683,13 +687,293 @@ function FullBracketView({ ko }: { ko: Record<string, Slot[]> }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// VUE CLUBS — confrontations en ALLER-RETOUR (Ligue des Champions)
+//
+// Pas de projection du tableau ici : contrairement à la Coupe du Monde, l'ordre
+// du bracket n'est pas connu d'avance (tirages successifs). On se contente
+// d'afficher les confrontations réelles, en regroupant les deux manches et en
+// affichant le score CUMULÉ — c'est lui qui qualifie.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const CLUB_ROUNDS = [
+  { stage: "PLAYOFF", tab: "Barrages", title: "Barrages" },
+  { stage: "ROUND_OF_16", tab: "8es", title: "8èmes de finale" },
+  { stage: "QUARTER", tab: "1/4", title: "Quarts de finale" },
+  { stage: "SEMI", tab: "1/2", title: "Demi-finales" },
+  { stage: "FINAL", tab: "Finale", title: "Finale" },
+] as const;
+
+type Tie = {
+  key: string;
+  /** Équipe recevant à l'aller (référence d'affichage). */
+  a: Team;
+  b: Team;
+  /** Manches jouées ou programmées, dans l'ordre chronologique. */
+  legs: Match[];
+  /** Score cumulé, null tant qu'aucune manche n'a de résultat. */
+  aggA: number | null;
+  aggB: number | null;
+  /** Qualifié, si la confrontation est tranchée. */
+  winner: "a" | "b" | null;
+  /** Départagé aux tirs au but (à l'issue de la dernière manche). */
+  onPenalties: boolean;
+};
+
+/**
+ * Regroupe les matchs d'un tour en confrontations (1 ou 2 manches) et calcule
+ * le cumul. La finale n'a qu'une manche : le « cumul » est son score.
+ */
+function buildTies(matches: Match[]): Tie[] {
+  const byPair = new Map<string, Match[]>();
+  for (const m of matches) {
+    const key = pairKey(m.homeTeam, m.awayTeam);
+    const list = byPair.get(key);
+    if (list) list.push(m);
+    else byPair.set(key, [m]);
+  }
+
+  const ties: Tie[] = [];
+  for (const [key, group] of byPair) {
+    const legs = [...group].sort(
+      (x, y) => +new Date(x.kickoffAt) - +new Date(y.kickoffAt)
+    );
+    const first = legs[0]!;
+    const a: Team = { name: first.homeTeam, flag: first.homeFlag };
+    const b: Team = { name: first.awayTeam, flag: first.awayFlag };
+
+    let aggA: number | null = null;
+    let aggB: number | null = null;
+    for (const leg of legs) {
+      const r = leg.result;
+      if (!r) continue;
+      const aIsHome = leg.homeTeam === a.name;
+      aggA = (aggA ?? 0) + (aIsHome ? r.homeScore : r.awayScore);
+      aggB = (aggB ?? 0) + (aIsHome ? r.awayScore : r.homeScore);
+    }
+
+    // Confrontation tranchée : toutes les manches connues ont un résultat, et
+    // le tour compte bien 2 manches (1 pour la finale).
+    const expected = first.stage === "FINAL" ? 1 : 2;
+    const complete = legs.length >= expected && legs.every((l) => !!l.result);
+
+    let winner: Tie["winner"] = null;
+    let onPenalties = false;
+    if (complete && aggA != null && aggB != null) {
+      if (aggA !== aggB) {
+        winner = aggA > aggB ? "a" : "b";
+      } else {
+        // Cumul égal → tirs au but à l'issue de la dernière manche.
+        const decider = legs[legs.length - 1]!;
+        const pen = decider.result?.penaltyWinner;
+        if (pen) {
+          const homeIsA = decider.homeTeam === a.name;
+          const homeSide: "a" | "b" = homeIsA ? "a" : "b";
+          const awaySide: "a" | "b" = homeIsA ? "b" : "a";
+          winner = pen === "home" ? homeSide : awaySide;
+          onPenalties = true;
+        }
+      }
+    }
+
+    ties.push({ key, a, b, legs, aggA, aggB, winner, onPenalties });
+  }
+
+  // Les confrontations les plus avancées d'abord (aller le plus tôt).
+  return ties.sort(
+    (x, y) =>
+      +new Date(x.legs[0]!.kickoffAt) - +new Date(y.legs[0]!.kickoffAt)
+  );
+}
+
+function TieRow({
+  team,
+  score,
+  win,
+  lose,
+  penalty,
+}: {
+  team: Team;
+  score: number | null;
+  win: boolean;
+  lose: boolean;
+  penalty: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-6 items-center gap-2",
+        win && "font-bold text-[#22c55e]",
+        lose && "text-[var(--color-danger)] opacity-80"
+      )}
+    >
+      <Flag
+        code={team.flag}
+        className={cn("h-4 w-[22px] shrink-0", lose && "opacity-50 grayscale")}
+      />
+      <span className="min-w-0 flex-1 truncate text-[13px] leading-tight">
+        {team.name}
+      </span>
+      {score !== null && (
+        <span className="shrink-0 font-mono text-sm font-bold leading-none">
+          {score}
+          {penalty && (
+            <span className="align-top text-[10px] text-[var(--color-gold)]">p</span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TieCard({ tie }: { tie: Tie }) {
+  const isFinal = tie.legs[0]?.stage === "FINAL";
+  const live = tie.legs.some((l) => l.live);
+
+  // Détail des manches : "2-1 · 0-0", orienté du point de vue de l'équipe A.
+  const legScores = tie.legs
+    .map((l) => {
+      const s = l.result ?? l.live;
+      if (!s) return null;
+      const aIsHome = l.homeTeam === tie.a.name;
+      const forA = aIsHome ? s.homeScore : s.awayScore;
+      const forB = aIsHome ? s.awayScore : s.homeScore;
+      return `${forA}-${forB}`;
+    })
+    .filter((s): s is string => s !== null);
+
+  const nextLeg = tie.legs.find((l) => !l.result && !l.live);
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col rounded-xl border p-2.5",
+        tie.winner
+          ? "border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
+          : "border-[var(--color-border-subtle)]/60 bg-[var(--color-surface-2)]"
+      )}
+    >
+      <TieRow
+        team={tie.a}
+        score={tie.aggA}
+        win={tie.winner === "a"}
+        lose={!!tie.winner && tie.winner !== "a"}
+        penalty={tie.onPenalties && tie.winner === "a"}
+      />
+      <div className="my-1.5 border-t border-[var(--color-border-subtle)]/40" />
+      <TieRow
+        team={tie.b}
+        score={tie.aggB}
+        win={tie.winner === "b"}
+        lose={!!tie.winner && tie.winner !== "b"}
+        penalty={tie.onPenalties && tie.winner === "b"}
+      />
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] leading-none text-[var(--color-muted)]">
+        <span className="truncate">
+          {isFinal
+            ? (fmtDay(tie.legs[0]?.kickoffAt ?? "") ?? " ")
+            : legScores.length > 0
+              ? `Cumul · ${legScores.join(" · ")}`
+              : (fmtDay(tie.legs[0]?.kickoffAt ?? "") ?? "Aller à venir")}
+        </span>
+        {live ? (
+          <span className="flex shrink-0 items-center gap-1 text-[var(--color-pitch-bright)]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-pitch-bright)]" />
+            en direct
+          </span>
+        ) : nextLeg && legScores.length > 0 ? (
+          <span className="shrink-0">retour {fmtDay(nextLeg.kickoffAt)}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ClubRoundsView({ matches }: { matches: Match[] }) {
+  const byStage = new Map<string, Match[]>();
+  for (const m of matches) {
+    const list = byStage.get(m.stage);
+    if (list) list.push(m);
+    else byStage.set(m.stage, [m]);
+  }
+
+  // Onglet par défaut : le tour le plus avancé qui a des matchs.
+  const available = CLUB_ROUNDS.filter((r) => byStage.has(r.stage));
+  const [active, setActive] = useState<string>(
+    available[available.length - 1]?.stage ?? CLUB_ROUNDS[0].stage
+  );
+
+  const round = CLUB_ROUNDS.find((r) => r.stage === active) ?? CLUB_ROUNDS[0];
+  const ties = buildTies(byStage.get(active) ?? []);
+
+  return (
+    <div>
+      <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {CLUB_ROUNDS.map(({ stage, tab }) => {
+          const isActive = active === stage;
+          const ready = byStage.has(stage);
+          return (
+            <button
+              key={stage}
+              onClick={() => setActive(stage)}
+              className={cn(
+                "shrink-0 rounded-full px-3.5 py-1.5 font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide transition-colors duration-200",
+                isActive
+                  ? "bg-[var(--color-pitch)] text-white shadow-[0_0_12px_var(--color-pitch)]/25"
+                  : ready
+                    ? "bg-[var(--color-surface-2)] text-[var(--color-muted)] hover:bg-[var(--color-surface-3)] hover:text-[var(--color-cream)]"
+                    : "bg-[var(--color-surface-2)] text-[var(--color-muted)]/40 hover:text-[var(--color-muted)]/70"
+              )}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+
+      <h3 className="mb-1 text-center font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-pitch-bright)]">
+        {round.title}
+      </h3>
+      {round.stage !== "FINAL" && (
+        <p className="mb-3 text-center text-[10px] text-[var(--color-muted)]">
+          aller-retour · score cumulé
+        </p>
+      )}
+
+      {ties.length === 0 ? (
+        <p className="py-6 text-center text-sm text-[var(--color-muted)]">
+          Tirage au sort à venir. ⚽
+        </p>
+      ) : (
+        <div className="mx-auto max-w-sm space-y-2.5">
+          {ties.map((t) => (
+            <TieCard key={t.key} tie={t} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Conteneur — bascule entre les deux vues
 // ══════════════════════════════════════════════════════════════════════════════
 
-export function BracketView({ matches }: { matches: Match[] }) {
+export function BracketView({
+  matches,
+  twoLegged = false,
+}: {
+  matches: Match[];
+  /** Tours en aller-retour (C1) → vue par confrontation, sans projection. */
+  twoLegged?: boolean;
+}) {
   const [mode, setMode] = useState<"tabs" | "full">("tabs");
 
   if (matches.length === 0) return null;
+
+  // Ligue des Champions : le tableau ne se projette pas (tirages successifs) et
+  // chaque tour se joue en deux manches → vue dédiée, sans bascule.
+  if (twoLegged) return <ClubRoundsView matches={matches} />;
 
   const ko = buildKnockout(matches);
 

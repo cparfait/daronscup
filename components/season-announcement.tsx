@@ -4,16 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, Sparkles, ChevronRight } from "lucide-react";
 
-// Clé VERSIONNÉE : pour une future annonce, bumper en -v2 et réutiliser tel quel.
-const DISMISS_KEY = "daronsfc-announce-odds-v1";
+// Clé VERSIONNÉE : pour une future annonce, bumper en -v3 et réutiliser tel quel.
+// v2 = lancement de la saison Ligue des Champions 2026/2027.
+const DISMISS_KEY = "daronsfc-announce-season-v2";
 
 /**
- * Annonce au lancement (modale sur le Hub) du nouveau scoring aux cotes.
- * - « Ne plus afficher » coché + « J'ai compris » → masquée définitivement.
+ * Annonce au lancement (modale sur le Hub) de la nouvelle saison.
+ * - « Ne plus afficher » coché + bouton → masquée définitivement.
  * - Fermeture sans cocher (✕ / clic dehors / bouton) → revient au prochain
  *   lancement, ce qui « force » l'accusé de lecture.
  */
-export function OddsAnnouncement() {
+export function SeasonAnnouncement() {
   const [show, setShow] = useState(false);
   const [dontShow, setDontShow] = useState(false);
 
@@ -32,7 +33,7 @@ export function OddsAnnouncement() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Nouveauté : le scoring aux cotes"
+      aria-label="Nouvelle saison : la Ligue des Champions"
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
       {/* Fond assombri (clic = fermer pour cette fois) */}
@@ -59,25 +60,27 @@ export function OddsAnnouncement() {
           </button>
         </div>
 
-        <div className="mb-1.5 text-center text-4xl">🔥</div>
+        <div className="mb-1.5 text-center text-4xl">⭐</div>
         <h2 className="text-gradient-gold mb-3 text-center font-[family-name:var(--font-display)] text-2xl font-extrabold">
-          Vous l&apos;avez réclamé,<br />on l&apos;a fait ! 🎉
+          La Coupe du Monde est finie,<br />place à la C1 ! 🎉
         </h2>
 
         <p className="mb-3 text-center text-sm leading-relaxed text-[var(--color-muted)]">
-          Place au <strong className="text-[var(--color-cream)]">scoring aux cotes</strong> !
-          Désormais les points récompensent ton flair : un résultat couru
-          d&apos;avance rapporte sa pitance, mais si tu déniches{" "}
-          <strong className="text-[var(--color-gold)]">LA victoire pépite</strong>{" "}
-          que personne n&apos;avait vue venir, tu rafles gros — jusqu&apos;à{" "}
-          <strong className="text-[var(--color-cream)]">12 pts</strong> en trouvant
-          le score exact (et encore ×2 avec le joker). Avoir du nez, ça paie. 👃
+          Nouvelle saison :{" "}
+          <strong className="text-[var(--color-cream)]">
+            la Ligue des Champions 2026/2027
+          </strong>
+          . Dès que le{" "}
+          <strong className="text-[var(--color-gold)]">tirage au sort</strong> de la
+          phase de ligue sera fait, les 36 clubs et leur calendrier arriveront ici
+          et tu pourras pronostiquer. Un peu de patience — ça arrive ! ⏳
         </p>
 
         <p className="mb-4 rounded-xl border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/[0.06] px-3 py-2 text-center text-xs leading-relaxed text-[var(--color-muted)]">
-          ♻️ Tous les points déjà acquis ont été{" "}
-          <strong className="text-[var(--color-cream)]">recalculés</strong> avec ce
-          nouveau barème — la même règle pour tout le monde.
+          🗄️ Tout le monde repart à{" "}
+          <strong className="text-[var(--color-cream)]">zéro point</strong> — la
+          Coupe du Monde est rangée au musée, palmarès inclus (Profil → Les
+          archives).
         </p>
 
         <Link

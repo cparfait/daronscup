@@ -15,6 +15,8 @@ import {
   Copy,
   ChevronDown,
   MessageSquare,
+  Archive,
+  PlayCircle,
 } from "lucide-react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ import type {
   AdminGroup,
   AdminPredictionMap,
 } from "@/lib/data/admin";
+import type { Season } from "@/lib/season";
 
 export function AdminConsole({
   users,
@@ -35,6 +38,7 @@ export function AdminConsole({
   currentUserId,
   championTeams,
   championOverride,
+  seasons,
 }: {
   users: AdminUser[];
   matches: AdminMatchResult[];
@@ -44,10 +48,12 @@ export function AdminConsole({
   currentUserId: string;
   championTeams: { team: string; flag: string }[];
   championOverride: { team: string; flag: string } | null;
+  seasons: Season[];
 }) {
   return (
     <div className="grid gap-4">
       <PresencePanel />
+      <SeasonsPanel seasons={seasons} />
       <SyncPanel />
       <InvitePanel />
       <GroupsPanel groups={groups} />
@@ -527,13 +533,169 @@ function CloseTournamentPanel() {
       <CardContent className="p-4">
         <CardTitle className="text-base">👑 Clôturer le tournoi</CardTitle>
         <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
-          Décerne le badge Daronissime au 1ᵉʳ du classement de chaque groupe
-          (un vainqueur par groupe). À faire en fin de Coupe du Monde.
+          Fige le palmarès de la saison en cours dans les archives et décerne le
+          badge Daronissime au 1ᵉʳ du classement de chaque groupe (un vainqueur
+          par groupe). Ne remet rien à zéro : c&apos;est l&apos;ouverture de la
+          saison suivante qui le fait.
         </p>
         <Button variant="gold" size="sm" onClick={close} disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : <Check />}
           Sacrer le Daronissime
         </Button>
+        {msg && (
+          <p
+            className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}
+          >
+            {msg.text}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Saisons : archivage et bascule ─── */
+function SeasonsPanel({ seasons }: { seasons: Season[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const { msg, flash } = useFeedback();
+
+  const active = seasons.find((s) => s.active) ?? null;
+  const others = seasons.filter((s) => !s.active);
+  const [target, setTarget] = useState(others[0]?.id ?? "");
+  // Décoché par défaut : une nouvelle saison démarre sans groupe, chacun
+  // recrée sa bande. À cocher seulement pour reprendre la précédente à
+  // l'identique.
+  const [cloneGroups, setCloneGroups] = useState(false);
+
+  const call = (
+    body: Record<string, unknown>,
+    confirmText: string,
+    onOk: (data: Record<string, unknown>) => string
+  ) =>
+    start(async () => {
+      if (!confirm(confirmText)) return;
+      try {
+        const res = await fetch("/api/admin/season", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Erreur");
+        flash(onOk(data), true);
+        router.refresh();
+      } catch (e) {
+        flash(e instanceof Error ? e.message : "Erreur", false);
+      }
+    });
+
+  const archive = () => {
+    if (!active) return;
+    call(
+      { action: "close", seasonId: active.id },
+      `Archiver « ${active.name} » ? Le palmarès est figé et le 👑 décerné. Rien n'est effacé.`,
+      (d) => {
+        const groups = (d.groups ?? []) as { name: string; champion: string | null }[];
+        const detail = groups
+          .filter((g) => g.champion)
+          .map((g) => `${g.name} → ${g.champion}`)
+          .join(" · ");
+        return `📦 Palmarès figé${detail ? ` : ${detail}` : ""}`;
+      }
+    );
+  };
+
+  const open = () => {
+    const season = others.find((s) => s.id === target);
+    if (!season) return;
+    call(
+      {
+        action: "open",
+        seasonId: season.id,
+        cloneGroupsFrom: cloneGroups ? (active?.id ?? null) : null,
+      },
+      `Ouvrir « ${season.name} » ?\n\nPoints, badges et paris champion seront REMIS À ZÉRO (le palmarès de la saison archivée est conservé).\n${
+        cloneGroups
+          ? "Les groupes d'amis seront recopiés, tchat vierge."
+          : "La saison démarrera SANS groupe : chacun recréera sa bande."
+      }`,
+      (d) =>
+        `🚀 ${season.name} est la saison active` +
+        (Number(d.groups) > 0
+          ? ` — ${d.groups} groupe(s) recopié(s) avec ${d.members} membre(s)`
+          : "") +
+        ". Lance une synchro pour importer le calendrier."
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <CardTitle className="text-base">🗓️ Saisons</CardTitle>
+        <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
+          Une seule compétition est active à la fois. L&apos;archivage fige le
+          palmarès ; l&apos;ouverture de la suivante remet les compteurs à zéro.
+        </p>
+
+        <div className="mb-3 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3 text-sm">
+          {active ? (
+            <>
+              <p className="font-semibold text-[var(--color-cream)]">
+                {active.emoji} {active.name}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                {active.competition}
+                {active.apiSeason ? ` ${active.apiSeason}` : ""} · jokers{" "}
+                {active.jokerLeagueBudget}/{active.jokerKnockoutBudget} · bonus
+                champion +{active.championBonus}
+                {active.closedAt ? " · archivée" : ""}
+              </p>
+            </>
+          ) : (
+            <p className="text-[var(--color-muted)]">Aucune saison active.</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="gold" size="sm" onClick={archive} disabled={pending || !active}>
+            {pending ? <Loader2 className="animate-spin" /> : <Archive />}
+            Archiver la saison
+          </Button>
+        </div>
+
+        {others.length > 0 && (
+          <div className="mt-4 border-t border-[var(--color-border-subtle)] pt-3">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--color-muted)]">
+              Ouvrir une autre saison
+            </label>
+            <select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              className="mb-2 w-full rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] px-3 py-2 text-sm"
+            >
+              {others.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.emoji} {s.name}
+                  {s.closedAt ? " (archivée)" : ""}
+                </option>
+              ))}
+            </select>
+            <label className="mb-2 flex items-center gap-2 text-xs text-[var(--color-muted)]">
+              <input
+                type="checkbox"
+                checked={cloneGroups}
+                onChange={(e) => setCloneGroups(e.target.checked)}
+              />
+              Reprendre les groupes de la saison passée (sinon on repart sans groupe)
+            </label>
+            <Button size="sm" onClick={open} disabled={pending || !target}>
+              {pending ? <Loader2 className="animate-spin" /> : <PlayCircle />}
+              Ouvrir et remettre à zéro
+            </Button>
+          </div>
+        )}
+
         {msg && (
           <p
             className={`mt-2 text-sm ${msg.ok ? "text-[var(--color-pitch-bright)]" : "text-red-400"}`}

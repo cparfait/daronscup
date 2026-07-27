@@ -2,6 +2,7 @@ import Link from "next/link";
 import { TriangleAlert, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 import { RegisterForm, GoogleSignInButton } from "@/components/auth-buttons";
 import { JoinGroupButton } from "@/components/join-group-button";
 
@@ -17,8 +18,11 @@ export default async function JoinGroupPage({
 
   let group: { id: string; name: string; memberCount: number } | null = null;
   try {
-    const g = await prisma.group.findUnique({
-      where: { token },
+    // Borné à la saison active : un lien d'une saison archivée est traité comme
+    // invalide (l'écran « lien périmé » s'affiche).
+    const season = await getActiveSeason();
+    const g = await prisma.group.findFirst({
+      where: { token, ...(season ? { seasonId: season.id } : {}) },
       select: { id: true, name: true, _count: { select: { members: true } } },
     });
     if (g) group = { id: g.id, name: g.name, memberCount: g._count.members };

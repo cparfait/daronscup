@@ -4,12 +4,19 @@
 // Un pronostic est GLOBAL (un par match) : le groupe ne change que le
 // classement affiché (entre membres) et le tchat. Le groupe actif est mémorisé
 // dans un cookie.
+//
+// Un groupe appartient à UNE SAISON : chaque compétition repart avec ses
+// groupes, donc son classement et son tchat vierges. Les groupes des saisons
+// précédentes restent en base (consultables via l'archive) mais ne sont plus
+// proposés. Au lancement d'une saison, l'admin peut recopier les groupes de la
+// précédente (cf. `cloneGroupsToSeason`).
 // ─────────────────────────────────────────────
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 
 export const GROUP_COOKIE = "daronsfc_group";
 
@@ -31,11 +38,16 @@ export function newGroupToken(): string {
   return randomUUID().replace(/-/g, "");
 }
 
-/** Groupes auxquels appartient l'utilisateur (du plus ancien au plus récent). */
+/**
+ * Groupes de l'utilisateur POUR LA SAISON ACTIVE (du plus ancien au plus
+ * récent). Renvoie une liste vide si aucune saison n'est amorcée.
+ */
 export async function getMyGroups(userId: string): Promise<GroupBrief[]> {
   try {
+    const season = await getActiveSeason();
+    if (!season) return [];
     const memberships = await prisma.groupMember.findMany({
-      where: { userId },
+      where: { userId, group: { seasonId: season.id } },
       include: {
         group: { include: { _count: { select: { members: true } } } },
       },
@@ -66,7 +78,10 @@ export async function getSwitchableGroups(
   const mine = await getMyGroups(userId);
   if (!isAdmin) return mine;
   try {
+    const season = await getActiveSeason();
+    if (!season) return mine;
     const all = await prisma.group.findMany({
+      where: { seasonId: season.id },
       include: { _count: { select: { members: true } } },
       orderBy: { createdAt: "asc" },
     });
@@ -108,8 +123,11 @@ export async function getActiveGroup(userId: string): Promise<ActiveGroup | null
       select: { role: true },
     });
     if (me?.role === "ADMIN") {
-      const g = await prisma.group.findUnique({
-        where: { id: wanted },
+      const season = await getActiveSeason();
+      const g = await prisma.group.findFirst({
+        // Borné à la saison active : un cookie pointant vers un groupe d'une
+        // saison archivée ne doit pas ramener l'admin dans l'ancien tournoi.
+        where: { id: wanted, ...(season ? { seasonId: season.id } : {}) },
         include: { _count: { select: { members: true } } },
       });
       if (g) {
@@ -203,8 +221,10 @@ export async function getUserPublicGroups(
   userId: string
 ): Promise<{ id: string; name: string }[]> {
   try {
+    const season = await getActiveSeason();
+    if (!season) return [];
     const memberships = await prisma.groupMember.findMany({
-      where: { userId },
+      where: { userId, group: { seasonId: season.id } },
       include: { group: { select: { id: true, name: true } } },
       orderBy: { joinedAt: "asc" },
     });
@@ -215,4 +235,54 @@ export async function getUserPublicGroups(
   } catch {
     return [];
   }
+}
+
+/**
+ * Recopie les groupes d'une saison vers une autre, membres compris (mais SANS
+ * les messages : le tchat repart vierge). Chaque groupe recréé reçoit un
+ * nouveau lien d'invitation — l'ancien lien pointait sur le groupe de l'ancienne
+ * saison. Idempotent : un groupe de même nom déjà présent dans la saison cible
+ * est ignoré.
+ *
+ * Sert au lancement d'une saison, pour éviter à toute la bande de se
+ * re-constituer à la main.
+ */
+export async function cloneGroupsToSeason(
+  fromSeasonId: string,
+  toSeasonId: string
+): Promise<{ groups: number; members: number }> {
+  const [source, existing] = await Promise.all([
+    prisma.group.findMany({
+      where: { seasonId: fromSeasonId },
+      include: { members: { orderBy: { joinedAt: "asc" } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.group.findMany({
+      where: { seasonId: toSeasonId },
+      select: { name: true },
+    }),
+  ]);
+
+  const taken = new Set(existing.map((g) => g.name));
+  let groups = 0;
+  let members = 0;
+
+  for (const g of source) {
+    if (taken.has(g.name)) continue;
+    await prisma.group.create({
+      data: {
+        name: g.name,
+        token: newGroupToken(),
+        createdBy: g.createdBy,
+        seasonId: toSeasonId,
+        members: {
+          create: g.members.map((m) => ({ userId: m.userId, role: m.role })),
+        },
+      },
+    });
+    groups++;
+    members += g.members.length;
+  }
+
+  return { groups, members };
 }

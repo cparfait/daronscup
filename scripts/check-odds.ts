@@ -1,19 +1,28 @@
 // Diagnostic cotes : etat base + reponse The Odds API. Usage :
 //   npx tsx --env-file=.env scripts/check-odds.ts
 import { prisma } from "../lib/prisma";
+import { getActiveSeason } from "../lib/season";
 import { fetchLiveOdds, ODDS_SPORT, ODDS_REGION } from "../lib/odds";
 import { snapshotOdds } from "../lib/odds-sync";
 
 async function main() {
-  const total = await prisma.match.count();
-  const withOdds = await prisma.match.count({ where: { oddsHome: { not: null } } });
-  const upcoming = await prisma.match.count({ where: { kickoffAt: { gt: new Date() } } });
+  // Borné à la saison en cours : les cotes des saisons archivées sont figées.
+  const season = await getActiveSeason();
+  const seasonId = season?.id;
+  const total = await prisma.match.count({ where: { seasonId } });
+  const withOdds = await prisma.match.count({
+    where: { seasonId, oddsHome: { not: null } },
+  });
+  const upcoming = await prisma.match.count({
+    where: { seasonId, kickoffAt: { gt: new Date() } },
+  });
   console.log(`Base : ${total} matchs (${upcoming} a venir), dont ${withOdds} avec cote.`);
   console.log(`Cle ODDS_API_KEY : ${process.env.ODDS_API_KEY ? "presente" : "ABSENTE"}`);
-  console.log(`Sport=${ODDS_SPORT} Region=${ODDS_REGION}`);
+  const sport = season?.oddsSport ?? ODDS_SPORT;
+  console.log(`Saison=${season?.name ?? "aucune"} Sport=${sport} Region=${ODDS_REGION}`);
 
   try {
-    const events = await fetchLiveOdds();
+    const events = await fetchLiveOdds(sport);
     if (events === null) {
       console.log("fetchLiveOdds -> null (pas de cle).");
     } else {

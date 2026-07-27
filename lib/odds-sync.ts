@@ -12,7 +12,9 @@
 
 import { prisma } from "./prisma";
 import { countryCode } from "./flags";
-import { fetchLiveOdds, type OddsMatch, type Odds1x2 } from "./odds";
+import { clubKey } from "./teams";
+import { getActiveSeason, type Season } from "./season";
+import { fetchLiveOdds, ODDS_SPORT, type OddsMatch, type Odds1x2 } from "./odds";
 
 const ODDS_INTERVAL_MS = 6 * 60 * 60_000; // 6 h entre deux captures réussies
 const ODDS_ERROR_BACKOFF_MS = 15 * 60_000; // retry plus tôt après un échec dur
@@ -39,26 +41,41 @@ type MatchRow = {
 };
 
 /**
- * Trouve l'évènement de cotes correspondant à un match (par code drapeau des
- * deux équipes, peu importe l'ordre domicile/extérieur), et renvoie les cotes
- * 1X2 ré-orientées vers le domicile/extérieur de NOTRE match. `null` si aucun
- * évènement n'apparie.
+ * Clé d'appariement d'une équipe entre football-data et The Odds API :
+ *   • sélections nationales → code drapeau (le plus fiable : "Turkey",
+ *     "Türkiye" et "Turkiye" tombent tous sur "tr") ;
+ *   • clubs → clé canonique de nom (cf. lib/teams.ts), les écussons n'étant pas
+ *     partagés entre les deux API.
  */
-function matchOdds(events: OddsMatch[], m: MatchRow): Odds1x2 | null {
-  if (!m.homeFlag || !m.awayFlag) return null;
+function teamKey(name: string, kind: Season["kind"]): string {
+  return kind === "CLUBS" ? clubKey(name) : countryCode(name);
+}
+
+/**
+ * Trouve l'évènement de cotes correspondant à un match (par clé d'équipe, peu
+ * importe l'ordre domicile/extérieur), et renvoie les cotes 1X2 ré-orientées
+ * vers le domicile/extérieur de NOTRE match. `null` si aucun évènement
+ * n'apparie.
+ */
+function matchOdds(
+  events: OddsMatch[],
+  m: MatchRow,
+  kind: Season["kind"]
+): Odds1x2 | null {
+  const mh = teamKey(m.homeTeam, kind);
+  const ma = teamKey(m.awayTeam, kind);
+  if (!mh || !ma) return null;
 
   const candidates = events.filter((e) => {
-    const eh = countryCode(e.home);
-    const ea = countryCode(e.away);
+    const eh = teamKey(e.home, kind);
+    const ea = teamKey(e.away, kind);
     if (!eh || !ea) return false;
-    return (
-      (eh === m.homeFlag && ea === m.awayFlag) ||
-      (eh === m.awayFlag && ea === m.homeFlag)
-    );
+    return (eh === mh && ea === ma) || (eh === ma && ea === mh);
   });
   if (candidates.length === 0) return null;
 
-  // Le plus proche du coup d'envoi (dédoublonne d'éventuels matchs aller/retour).
+  // Le plus proche du coup d'envoi — indispensable en C1, où une même
+  // confrontation se joue en aller-retour (deux évènements pour la même paire).
   const ev = candidates.reduce((best, e) =>
     Math.abs(+new Date(e.commenceTime) - +m.kickoffAt) <
     Math.abs(+new Date(best.commenceTime) - +m.kickoffAt)
@@ -67,7 +84,7 @@ function matchOdds(events: OddsMatch[], m: MatchRow): Odds1x2 | null {
   );
 
   // L'évènement peut lister les équipes dans l'ordre inverse du nôtre.
-  const swapped = countryCode(ev.home) === m.awayFlag;
+  const swapped = teamKey(ev.home, kind) === ma;
   return swapped
     ? { home: ev.oddsAway, draw: ev.oddsDraw, away: ev.oddsHome }
     : { home: ev.oddsHome, draw: ev.oddsDraw, away: ev.oddsAway };
@@ -79,13 +96,16 @@ function matchOdds(events: OddsMatch[], m: MatchRow): Odds1x2 | null {
  * No-op silencieux si aucune clé `ODDS_API_KEY` (fetchLiveOdds → null).
  */
 export async function snapshotOdds(): Promise<SnapshotResult> {
-  const events = await fetchLiveOdds();
+  const season = await getActiveSeason();
+  if (!season) return { updated: 0, unmatchedSoon: [] };
+
+  const events = await fetchLiveOdds(season.oddsSport ?? ODDS_SPORT);
   if (!events || events.length === 0) return { updated: 0, unmatchedSoon: [] };
 
   const now = new Date();
   const soon = now.getTime() + SOON_MS;
   const matches = await prisma.match.findMany({
-    where: { kickoffAt: { gt: now } },
+    where: { seasonId: season.id, kickoffAt: { gt: now } },
     select: {
       id: true,
       homeTeam: true,
@@ -99,7 +119,7 @@ export async function snapshotOdds(): Promise<SnapshotResult> {
   let updated = 0;
   const unmatchedSoon: string[] = [];
   for (const m of matches) {
-    const odds = matchOdds(events, m);
+    const odds = matchOdds(events, m, season.kind);
     if (!odds) {
       // Match imminent sans cote → souvent un nom d'équipe non mappé : on le
       // signale pour backfill manuel (panneau admin « 🎲 Cotes manuelles »).
@@ -131,9 +151,11 @@ export async function maybeSnapshotOdds(): Promise<void> {
     await oddsInFlight.catch(() => {});
     return;
   }
-  // Garde-fou : aucun match à venir → aucun appel réseau.
+  // Garde-fou : aucun match à venir dans la saison active → aucun appel réseau.
+  const season = await getActiveSeason();
+  if (!season) return;
   const upcoming = await prisma.match.count({
-    where: { kickoffAt: { gt: new Date() } },
+    where: { seasonId: season.id, kickoffAt: { gt: new Date() } },
   });
   if (upcoming === 0) return;
 

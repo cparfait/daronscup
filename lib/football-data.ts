@@ -1,21 +1,29 @@
 /**
  * Client football-data.org (v4) — source GRATUITE des matchs.
- * Palier gratuit : couvre la Coupe du Monde (code `WC`), 10 req/min.
- * Token gratuit : https://www.football-data.org/client/register
+ * Palier gratuit : couvre la Coupe du Monde (`WC`) et la Ligue des Champions
+ * (`CL`), 10 req/min. Token gratuit : football-data.org/client/register
  *
- * Synchronise les matchs vers la base (modèle `Match` + `Result`).
+ * Synchronise les matchs de la SAISON ACTIVE vers la base (`Match` + `Result`).
+ * La compétition et l'édition à synchroniser viennent de `Season`
+ * (`competition` + `apiSeason`), pas de l'environnement.
  */
 
 import { prisma } from "./prisma";
 import { countryCode } from "./flags";
-import { computePoints, CHAMPION_BONUS } from "./scoring";
+import { clubDisplayName } from "./teams";
+import { computePoints, CHAMPION_BONUS as DEFAULT_CHAMPION_BONUS } from "./scoring";
 import { compareRanked } from "./ranking";
 import { postMatchRecaps } from "./match-recap";
+import { matchdayKey } from "./matchday";
+import { getActiveSeason, type Season } from "./season";
 import type { Stage } from "./data/matches";
 
 const BASE_URL = "https://api.football-data.org/v4";
 
-/** Code compétition football-data (défaut : Coupe du Monde). */
+/**
+ * Code compétition de repli, utilisé uniquement si aucune saison n'est amorcée
+ * en base. `FOOTBALL_DATA_COMPETITION` reste supporté pour compatibilité.
+ */
 export const COMPETITION = process.env.FOOTBALL_DATA_COMPETITION ?? "WC";
 
 // ── Types partiels du payload /matches qui nous intéressent ──
@@ -30,15 +38,26 @@ type FdScore = {
   extraTime?: FdGoals | null;
   penalties?: FdGoals | null;
 };
+type FdTeam = {
+  name: string | null;
+  /** Nom court ("PSG", "Bayern") — utilisé pour l'affichage des clubs. */
+  shortName?: string | null;
+  /** URL de l'écusson (clubs) : https://crests.football-data.org/{id}.png */
+  crest?: string | null;
+};
 type FdMatch = {
   id: number;
   utcDate: string;
   status: string; // SCHEDULED | TIMED | IN_PLAY | PAUSED | FINISHED | ...
-  stage: string; // GROUP_STAGE | LAST_16 | QUARTER_FINALS | SEMI_FINALS | THIRD_PLACE | FINAL
-  group: string | null; // "GROUP_A" | null
+  // CdM   : GROUP_STAGE | LAST_16 | QUARTER_FINALS | SEMI_FINALS | THIRD_PLACE | FINAL
+  // C1    : LEAGUE_STAGE | PLAYOFFS | LAST_16 | QUARTER_FINALS | SEMI_FINALS | FINAL
+  stage: string;
+  group: string | null; // "GROUP_A" | null (toujours null en phase de ligue)
+  // Journée de phase de ligue (1→8) OU numéro de manche d'un tour aller-retour
+  // (1 = aller, 2 = retour) — cf. lib/matchday.ts.
   matchday: number | null;
-  homeTeam: { name: string | null };
-  awayTeam: { name: string | null };
+  homeTeam: FdTeam;
+  awayTeam: FdTeam;
   score: FdScore;
 };
 
@@ -92,6 +111,17 @@ function extractScore(s: FdScore): {
   return { home, away, penaltyWinner };
 }
 
+/** Erreur HTTP de football-data, avec le code de statut exploitable. */
+class FootballDataError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "FootballDataError";
+  }
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
   const token = process.env.FOOTBALL_DATA_TOKEN;
   if (!token) {
@@ -109,7 +139,10 @@ async function apiFetch<T>(path: string): Promise<T> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`football-data ${res.status}: ${res.statusText} ${body}`.trim());
+    throw new FootballDataError(
+      res.status,
+      `football-data ${res.status}: ${res.statusText} ${body}`.trim()
+    );
   }
 
   return res.json() as Promise<T>;
@@ -189,8 +222,32 @@ function translateTeam(name: string): string {
   return TEAM_NAME_FR[name] ?? name;
 }
 
+/**
+ * Nom affiché d'une équipe, selon le type de compétition :
+ *   • sélection nationale → traduction FR du nom complet ("Germany" → "Allemagne")
+ *   • club → `shortName` de l'API, francisé ("FC Bayern München" → "Bayern")
+ */
+function teamName(team: FdTeam, kind: Season["kind"]): string {
+  const full = team.name ?? "";
+  return kind === "CLUBS" ? clubDisplayName(full, team.shortName) : translateTeam(full);
+}
+
+/**
+ * Emblème stocké : code drapeau flagcdn pour une nation, URL d'écusson pour un
+ * club (cf. lib/flags.ts). "" si indisponible → <Flag> affiche un carré neutre.
+ */
+function teamEmblem(team: FdTeam, kind: Season["kind"]): string {
+  if (kind === "CLUBS") return team.crest ?? "";
+  return countryCode(team.name ?? "");
+}
+
 const STAGE_MAP: Record<string, Stage> = {
   GROUP_STAGE: "GROUP",
+  // Ligue des Champions (format depuis 2024/25) : une phase de ligue à 36 clubs
+  // puis des barrages qualificatifs pour les 8èmes.
+  LEAGUE_STAGE: "LEAGUE",
+  PLAYOFFS: "PLAYOFF",
+  PLAYOFF_ROUND: "PLAYOFF",
   LAST_32: "ROUND_OF_32",
   LAST_16: "ROUND_OF_16",
   QUARTER_FINALS: "QUARTER",
@@ -199,8 +256,8 @@ const STAGE_MAP: Record<string, Stage> = {
   FINAL: "FINAL",
 };
 
-function mapStage(stage: string): Stage {
-  return STAGE_MAP[stage] ?? "GROUP";
+function mapStage(stage: string, kind: Season["kind"]): Stage {
+  return STAGE_MAP[stage] ?? (kind === "CLUBS" ? "LEAGUE" : "GROUP");
 }
 
 /** "GROUP_A" → "A", sinon null. */
@@ -242,48 +299,74 @@ export async function maybeSyncMatches(minIntervalMs = 2 * 60_000): Promise<void
 }
 
 /**
- * Synchronise les matchs de la compétition vers la base.
+ * Synchronise les matchs de la SAISON ACTIVE vers la base.
  * Idempotent : upsert sur `externalId`. Renvoie les compteurs.
  *
  * Met à jour `lastSyncAt` et partage un verrou anti-concurrence avec
  * maybeSyncMatches() : un sync auto (instrumentation) repousse donc d'autant
  * les syncs déclenchés par la navigation.
+ *
+ * No-op (0 match) si aucune saison n'est active — l'app n'a alors rien à
+ * synchroniser, mieux vaut ça qu'importer une compétition au hasard.
  */
-export async function syncMatches(
-  competition = COMPETITION
-): Promise<{ matches: number; results: number }> {
+export async function syncMatches(): Promise<{ matches: number; results: number }> {
   if (syncInFlight) return syncInFlight;
-  syncInFlight = runSyncMatches(competition).finally(() => {
+  syncInFlight = runSyncMatches().finally(() => {
     lastSyncAt = Date.now();
     syncInFlight = null;
   });
   return syncInFlight;
 }
 
-async function runSyncMatches(
-  competition: string
-): Promise<{ matches: number; results: number }> {
-  const data = await apiFetch<FdMatchesResponse>(
-    `/competitions/${competition}/matches`
-  );
+async function runSyncMatches(): Promise<{ matches: number; results: number }> {
+  const season = await getActiveSeason();
+  if (!season) {
+    console.warn("[sync] aucune saison active — synchro ignorée.");
+    return { matches: 0, results: 0 };
+  }
+
+  // `?season=YYYY` épingle l'édition : sans lui, l'API renvoie sa
+  // « currentSeason », qui peut être l'édition précédente (ex. en juillet, la
+  // C1 « courante » est encore la saison qui vient de s'achever) — on
+  // importerait alors l'ancien calendrier dans la nouvelle saison.
+  const query = season.apiSeason ? `?season=${season.apiSeason}` : "";
+  let data: FdMatchesResponse;
+  try {
+    data = await apiFetch<FdMatchesResponse>(
+      `/competitions/${season.competition}/matches${query}`
+    );
+  } catch (err) {
+    // Édition pas encore publiée par l'API : normal entre deux saisons (le
+    // calendrier de la C1 n'existe qu'après le tirage de la phase de ligue,
+    // fin août). Ce n'est pas une panne → pas de bruit dans les logs.
+    if (err instanceof FootballDataError && err.status === 404) {
+      console.log(
+        `[sync] calendrier ${season.competition}${season.apiSeason ? ` ${season.apiSeason}` : ""} pas encore publié — nouvelle tentative au prochain cycle.`
+      );
+      return { matches: 0, results: 0 };
+    }
+    throw err;
+  }
 
   let results = 0;
 
   for (const fd of data.matches) {
-    // On ignore les matchs sans équipes définies (qualifications à venir).
+    // On ignore les matchs sans équipes définies (tirage au sort à venir : en
+    // C1, les affiches des barrages et des 8èmes n'existent pas d'emblée).
     const homeTeam = fd.homeTeam.name;
     const awayTeam = fd.awayTeam.name;
     if (!homeTeam || !awayTeam) continue;
 
     const matchData = {
-      homeTeam: translateTeam(homeTeam),
-      awayTeam: translateTeam(awayTeam),
-      homeFlag: countryCode(homeTeam),
-      awayFlag: countryCode(awayTeam),
+      homeTeam: teamName(fd.homeTeam, season.kind),
+      awayTeam: teamName(fd.awayTeam, season.kind),
+      homeFlag: teamEmblem(fd.homeTeam, season.kind),
+      awayFlag: teamEmblem(fd.awayTeam, season.kind),
       kickoffAt: new Date(fd.utcDate),
-      stage: mapStage(fd.stage),
+      stage: mapStage(fd.stage, season.kind),
       group: mapGroup(fd.group),
       matchday: fd.matchday,
+      seasonId: season.id,
       externalId: fd.id,
     };
 
@@ -370,8 +453,10 @@ export async function hasActiveMatchWindow(): Promise<boolean> {
   const from = new Date(now - 140 * 60_000); // kickoff jusqu'à 2h20 avant
   const to = new Date(now + 15 * 60_000); // kickoff jusqu'à 15 min après now
   try {
+    const season = await getActiveSeason();
+    if (!season) return false;
     const count = await prisma.match.count({
-      where: { kickoffAt: { gte: from, lte: to } },
+      where: { seasonId: season.id, kickoffAt: { gte: from, lte: to } },
     });
     return count > 0;
   } catch {
@@ -426,14 +511,23 @@ export async function applyMatchResult(
 
   const preds = await prisma.prediction.findMany({ where: { matchId } });
 
-  // Cotes figées de ce match (barème « façon MPP ») — null si absentes (repli).
-  const matchOdds = await prisma.match.findUnique({
+  // Cotes figées de ce match (barème « façon MPP ») — null si absentes (repli)
+  // — et saison de rattachement, qui borne tous les recalculs ci-dessous.
+  const matchRow = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { oddsHome: true, oddsDraw: true, oddsAway: true },
+    select: {
+      oddsHome: true,
+      oddsDraw: true,
+      oddsAway: true,
+      seasonId: true,
+      season: { select: { championBonus: true } },
+    },
   });
-  const odds = matchOdds
-    ? { home: matchOdds.oddsHome, draw: matchOdds.oddsDraw, away: matchOdds.oddsAway }
+  const odds = matchRow
+    ? { home: matchRow.oddsHome, draw: matchRow.oddsDraw, away: matchRow.oddsAway }
     : null;
+  const seasonId = matchRow?.seasonId ?? null;
+  const championBonus = matchRow?.season?.championBonus ?? DEFAULT_CHAMPION_BONUS;
 
   // Ce résultat change-t-il réellement quelque chose ? (nouveau résultat ou
   // points d'au moins un prono différents de ce qui est déjà crédité)
@@ -496,7 +590,7 @@ export async function applyMatchResult(
       // Bonus « vainqueur du tournoi » : connu seulement quand la finale est
       // jouée. On l'intègre directement au score figé pour rester cohérent
       // partout (classement, profil…).
-      const championFlag = await getChampionFlagTx(tx);
+      const championFlag = await getChampionFlagTx(tx, seasonId);
       const correctPickers = championFlag
         ? new Set(
             (
@@ -510,10 +604,13 @@ export async function applyMatchResult(
 
       // Tous les pronos (matchs terminés) des joueurs concernés en UNE requête
       // (au lieu d'un findMany par joueur dans la transaction → moins de verrous).
+      // Bornés à la SAISON du match : `Score` est l'agrégat de la saison en
+      // cours, pas de la carrière — sinon les points d'une saison archivée se
+      // rajouteraient au classement courant.
       const allPreds = await tx.prediction.findMany({
         where: {
           userId: { in: userIds },
-          match: { result: { status: "FINISHED" } },
+          match: { seasonId, result: { status: "FINISHED" } },
         },
         include: { match: { include: { result: true } } },
       });
@@ -548,7 +645,7 @@ export async function applyMatchResult(
           if (b.exactScore) exactScores++;
           if (b.correctResult) correctResults++;
         }
-        if (correctPickers.has(userId)) points += CHAMPION_BONUS;
+        if (correctPickers.has(userId)) points += championBonus;
         await tx.score.upsert({
           where: { userId },
           update: { points, exactScores, correctResults },
@@ -563,7 +660,7 @@ export async function applyMatchResult(
   const userIds = [...new Set(preds.map((p) => p.userId))];
   await Promise.all(
     userIds.map((userId) =>
-      checkAndAwardBadges(userId).catch((e) =>
+      checkAndAwardBadges(userId, seasonId).catch((e) =>
         console.error("[badges] ignoré:", e instanceof Error ? e.message : e)
       )
     )
@@ -578,10 +675,10 @@ export async function applyMatchResult(
   }
 
   // Bonus « vainqueur du tournoi » : dès que la finale est jouée, on crédite les
-  // +50 pts (CHAMPION_BONUS) à TOUS les bons parieurs (y compris ceux qui n'ont
-  // pas pronostiqué la finale, donc absents du recalcul ci-dessus). Idempotent.
+  // points bonus à TOUS les bons parieurs (y compris ceux qui n'ont pas
+  // pronostiqué la finale, donc absents du recalcul ci-dessus). Idempotent.
   if (justFinished || opts.force) {
-    await settleChampionBonus().catch((e) =>
+    await settleChampionBonus(seasonId).catch((e) =>
       console.error("[champion] ignoré:", e instanceof Error ? e.message : e)
     );
   }
@@ -595,20 +692,26 @@ export async function applyMatchResult(
 
 type ChampionDb = {
   match: { findFirst: typeof prisma.match.findFirst };
-  championOverride: { findUnique: typeof prisma.championOverride.findUnique };
+  championOverride: { findFirst: typeof prisma.championOverride.findFirst };
 };
 
-/** Drapeau du vainqueur du tournoi (null tant qu'il n'est pas tranché). */
-async function getChampionFlagTx(db: ChampionDb): Promise<string | null> {
+/**
+ * Emblème du vainqueur du tournoi d'une saison (null tant qu'il n'est pas
+ * tranché). `seasonId` null → repli sur les données sans saison (héritage).
+ */
+async function getChampionFlagTx(
+  db: ChampionDb,
+  seasonId: string | null
+): Promise<string | null> {
   // 1) Override admin (finale aux tirs au but) — prioritaire.
-  const override = await db.championOverride.findUnique({
-    where: { id: "singleton" },
+  const override = await db.championOverride.findFirst({
+    where: seasonId ? { seasonId } : { id: "singleton" },
   });
   if (override) return override.flag;
 
-  // 2) Sinon, déduit du score de la finale.
+  // 2) Sinon, déduit du score de la finale de CETTE saison.
   const final = await db.match.findFirst({
-    where: { stage: "FINAL" },
+    where: { stage: "FINAL", ...(seasonId ? { seasonId } : {}) },
     include: { result: true },
   });
   if (!final?.result || final.result.status !== "FINISHED") return null;
@@ -621,11 +724,24 @@ async function getChampionFlagTx(db: ChampionDb): Promise<string | null> {
 
 /**
  * Recrédite le bonus champion à tous les parieurs une fois la finale jouée.
- * Recalcule chaque score depuis zéro (matchs + bonus) → idempotent.
+ * Recalcule chaque score depuis zéro (matchs de la saison + bonus) → idempotent.
+ * Sans `seasonId`, opère sur la saison active.
  */
-export async function settleChampionBonus(): Promise<void> {
-  const championFlag = await getChampionFlagTx(prisma);
+export async function settleChampionBonus(
+  seasonId?: string | null
+): Promise<void> {
+  const sid = seasonId ?? (await getActiveSeason())?.id ?? null;
+  const championFlag = await getChampionFlagTx(prisma, sid);
   if (!championFlag) return;
+
+  const bonus = sid
+    ? ((
+        await prisma.season.findUnique({
+          where: { id: sid },
+          select: { championBonus: true },
+        })
+      )?.championBonus ?? DEFAULT_CHAMPION_BONUS)
+    : DEFAULT_CHAMPION_BONUS;
 
   const pickers = await prisma.championPick.findMany({
     select: { userId: true, flag: true },
@@ -633,7 +749,10 @@ export async function settleChampionBonus(): Promise<void> {
   // Tous les pronos des parieurs en UNE requête (au lieu d'un findMany / joueur).
   const pickerIds = pickers.map((p) => p.userId);
   const allPreds = await prisma.prediction.findMany({
-    where: { userId: { in: pickerIds }, match: { result: { status: "FINISHED" } } },
+    where: {
+      userId: { in: pickerIds },
+      match: { seasonId: sid, result: { status: "FINISHED" } },
+    },
     include: { match: { include: { result: true } } },
   });
   const predsByUser = new Map<string, typeof allPreds>();
@@ -665,7 +784,7 @@ export async function settleChampionBonus(): Promise<void> {
       if (b.exactScore) exactScores++;
       if (b.correctResult) correctResults++;
     }
-    if (pick.flag === championFlag) points += CHAMPION_BONUS;
+    if (pick.flag === championFlag) points += bonus;
     await prisma.score.upsert({
       where: { userId: pick.userId },
       update: { points, exactScores, correctResults },
@@ -678,7 +797,15 @@ export async function settleChampionBonus(): Promise<void> {
 // Attribution automatique des badges
 // ─────────────────────────────────────────────
 
-async function checkAndAwardBadges(userId: string): Promise<void> {
+/**
+ * Réconcilie les badges d'un joueur pour UNE saison. `UserBadge` est un agrégat
+ * de la saison en cours (figé dans l'archive à la clôture, puis remis à zéro) :
+ * on ne compte donc que les pronos de cette saison.
+ */
+async function checkAndAwardBadges(
+  userId: string,
+  seasonId: string | null
+): Promise<void> {
   const [score, existingBadges, scoredPreds, allPreds] = await Promise.all([
     prisma.score.findUnique({ where: { userId } }),
     prisma.userBadge.findMany({
@@ -686,15 +813,17 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
       include: { badge: { select: { key: true, id: true } } },
     }),
     prisma.prediction.findMany({
-      where: { userId, pointsAwarded: { not: null } },
+      where: { userId, pointsAwarded: { not: null }, match: { seasonId } },
       include: {
         match: { include: { result: true } },
       },
       orderBy: { match: { kickoffAt: "asc" } },
     }),
     prisma.prediction.findMany({
-      where: { userId },
-      include: { match: { select: { matchday: true, kickoffAt: true } } },
+      where: { userId, match: { seasonId } },
+      include: {
+        match: { select: { stage: true, matchday: true, kickoffAt: true } },
+      },
     }),
   ]);
 
@@ -762,13 +891,15 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
   }
 
   // ── Regroupement par journée (meme_pas_mal + assidu) ──
-  const byDay = new Map<number, typeof allPreds>();
+  // La clé combine l'étape ET le numéro : en C1, les manches aller/retour des
+  // tours à élimination directe portent matchday 1 et 2, qui collisionneraient
+  // avec les journées 1 et 2 de la phase de ligue (cf. lib/matchday.ts).
+  const byDay = new Map<string, typeof allPreds>();
   for (const p of allPreds) {
-    const day = p.match.matchday;
-    if (day == null) continue;
-    const list = byDay.get(day) ?? [];
+    const key = matchdayKey(p.match.stage, p.match.matchday);
+    const list = byDay.get(key) ?? [];
     list.push(p);
-    byDay.set(day, list);
+    byDay.set(key, list);
   }
 
   // ── meme_pas_mal : 0 pt sur une journée complète (≥2 pronos, tous terminés) ──
@@ -784,8 +915,11 @@ async function checkAndAwardBadges(userId: string): Promise<void> {
   }
 
   // ── assidu : tous les matchs d'une journée pronostiqués ──
-  for (const [day, dayPreds] of byDay.entries()) {
-    const total = await prisma.match.count({ where: { matchday: day } });
+  for (const dayPreds of byDay.values()) {
+    const sample = dayPreds[0]!.match;
+    const total = await prisma.match.count({
+      where: { seasonId, stage: sample.stage, matchday: sample.matchday },
+    });
     if (total >= 2 && dayPreds.length >= total) {
       shouldHave.add("assidu");
       break;

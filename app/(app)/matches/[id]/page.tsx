@@ -10,8 +10,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMatch, getMatchPredictions } from "@/lib/data/queries";
 import { getActiveGroup, getGroupMemberIds } from "@/lib/groups";
-import { STAGE_LABELS, type MatchPrediction } from "@/lib/data/matches";
+import { type MatchPrediction } from "@/lib/data/matches";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
+import {
+  getActiveSeason,
+  hasTwoLeggedTies,
+  needsPenaltyPick,
+} from "@/lib/season";
+import { matchLabel } from "@/lib/matchday";
 import { formatKickoff } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +28,11 @@ export default async function MatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [match, session] = await Promise.all([getMatch(id), auth()]);
+  const [match, session, season] = await Promise.all([
+    getMatch(id),
+    auth(),
+    getActiveSeason(),
+  ]);
   if (!match) notFound();
 
   // Prono existant de l'utilisateur connecté (pour pré-remplir le formulaire)
@@ -46,8 +56,8 @@ export default async function MatchDetailPage({
     } catch {}
   }
 
-  // Jokers restants pour la phase de ce match (poules = 4, phase finale = 2)
-  const budget = jokerBudget(match.stage);
+  // Jokers restants pour la phase de ce match (budget propre à la saison)
+  const budget = jokerBudget(match.stage, season);
   let jokersLeft = budget;
   if (session?.user?.id) {
     try {
@@ -56,7 +66,10 @@ export default async function MatchDetailPage({
           userId: session.user.id,
           joker: true,
           matchId: { not: id },
-          match: { stage: { in: stagesOfPhase(jokerPhase(match.stage)) } },
+          match: {
+            stage: { in: stagesOfPhase(jokerPhase(match.stage)) },
+            ...(season ? { seasonId: season.id } : {}),
+          },
         },
       });
       jokersLeft = Math.max(0, budget - usedElsewhere);
@@ -67,7 +80,12 @@ export default async function MatchDetailPage({
   const locked = Date.now() >= kickoff.getTime();
   const finished = match.result?.status === "FINISHED";
   const live = match.live;
-  const group = match.group ? `Groupe ${match.group}` : STAGE_LABELS[match.stage];
+  const group = matchLabel(
+    match.stage,
+    match.group,
+    match.matchday,
+    hasTwoLeggedTies(season)
+  );
 
   // Après le coup d'envoi : les pronos des joueurs du groupe actif deviennent publics.
   let predictions: MatchPrediction[] = [];
@@ -246,6 +264,7 @@ export default async function MatchDetailPage({
             initial={existing}
             jokersLeft={jokersLeft}
             jokerBudget={budget}
+            askPenalty={needsPenaltyPick(season, match.stage)}
           />
         )}
       </section>

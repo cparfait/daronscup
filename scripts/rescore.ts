@@ -9,10 +9,19 @@
  */
 import { prisma } from "../lib/prisma";
 import { applyMatchResult } from "../lib/football-data";
+import { getActiveSeason } from "../lib/season";
 
 async function main() {
+  const season = await getActiveSeason();
+  if (!season) {
+    console.log("Aucune saison active — rien à recalculer.");
+    return;
+  }
+  console.log(`Saison : ${season.name}`);
+
+  // Borné à la saison en cours : `Score` est son agrégat, pas celui de la carrière.
   const results = await prisma.result.findMany({
-    where: { status: "FINISHED" },
+    where: { status: "FINISHED", match: { seasonId: season.id } },
     include: { match: { select: { homeTeam: true, awayTeam: true } } },
   });
 

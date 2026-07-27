@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GROUP_COOKIE } from "@/lib/groups";
+import { getActiveSeason } from "@/lib/season";
 
 const joinSchema = z.object({ token: z.string().min(8) });
 
@@ -21,10 +22,22 @@ export async function POST(req: Request) {
   try {
     const group = await prisma.group.findUnique({
       where: { token: parsed.data.token },
-      select: { id: true, name: true },
+      select: { id: true, name: true, seasonId: true },
     });
     if (!group) {
       return NextResponse.json({ error: "Ce groupe n'existe pas (lien invalide)." }, { status: 404 });
+    }
+
+    // Lien d'une saison passée : le groupe existe mais n'est plus jouable.
+    const season = await getActiveSeason();
+    if (season && group.seasonId && group.seasonId !== season.id) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce lien date d'une saison terminée. Demande le lien de la saison en cours.",
+        },
+        { status: 410 }
+      );
     }
 
     const existing = await prisma.groupMember.findUnique({

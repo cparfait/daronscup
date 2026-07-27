@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 import { sendPushToUsers } from "@/lib/push";
 import { compareRanked } from "@/lib/ranking";
 
@@ -17,8 +18,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Interdit" }, { status: 403 });
   }
 
+  // Saison en cours seulement : on ne notifie pas un résultat rattrapé sur une
+  // compétition archivée.
+  const season = await getActiveSeason();
   const pending = await prisma.result.findMany({
-    where: { status: "FINISHED", notified: false },
+    where: {
+      status: "FINISHED",
+      notified: false,
+      match: { seasonId: season?.id ?? undefined },
+    },
     include: {
       match: {
         select: {

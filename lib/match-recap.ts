@@ -49,7 +49,11 @@ type MemberRow = {
   before: Rankable; // classement reconstitué avant ce match
 };
 
-/** Poste le récap de ce match dans tous les groupes concernés (si pas déjà fait). */
+/**
+ * Poste le récap de ce match dans les groupes concernés (si pas déjà fait).
+ * Bornage à la saison du match : sans ça, un récap tomberait aussi dans les
+ * tchats des groupes de saisons archivées.
+ */
 export async function postMatchRecaps(matchId: string): Promise<void> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -89,6 +93,7 @@ export async function postMatchRecaps(matchId: string): Promise<void> {
   }
 
   const groups = await prisma.group.findMany({
+    where: { seasonId: match.seasonId },
     include: {
       members: {
         include: {

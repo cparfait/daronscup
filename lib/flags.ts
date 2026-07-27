@@ -1,9 +1,14 @@
 // ─────────────────────────────────────────────
-// Conversion nom de pays → code drapeau (compatible flagcdn.com).
+// Emblème d'une équipe : drapeau de nation ou écusson de club.
 //
-// On stocke un CODE (ex. "fr", "gb-eng") plutôt qu'un emoji : les emojis
-// drapeaux ne sont pas rendus par Windows. Le code est ensuite affiché en
-// image via le composant <Flag> (https://flagcdn.com/{code}.svg).
+// `Match.homeFlag` / `awayFlag` stockent l'un OU l'autre :
+//   • sélection nationale → un CODE flagcdn (ex. "fr", "gb-eng"). On stocke un
+//     code plutôt qu'un emoji : les emojis drapeaux ne sont pas rendus par
+//     Windows. Le code est affiché en image (https://flagcdn.com/{code}.svg).
+//   • club (Ligue des Champions) → l'URL de l'écusson fournie par
+//     football-data.org (https://crests.football-data.org/{id}.png).
+//
+// Le composant <Flag> distingue les deux via `isCrestUrl`.
 // ─────────────────────────────────────────────
 
 /**
@@ -82,6 +87,14 @@ const NAME_TO_CODE: Record<string, string> = {
 /** Code drapeau (flagcdn) pour un nom d'équipe, ou "" si inconnu. */
 export function countryCode(name: string): string {
   return NAME_TO_CODE[name] ?? "";
+}
+
+/**
+ * L'emblème est-il une URL d'écusson (club) plutôt qu'un code drapeau ?
+ * Les écussons sont servis en absolu par football-data.org.
+ */
+export function isCrestUrl(emblem: string): boolean {
+  return /^https?:\/\//.test(emblem);
 }
 
 /** Tous les codes drapeaux utilisés (uniques, triés) — pour le pré-téléchargement. */

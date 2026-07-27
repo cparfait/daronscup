@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 
 const registerSchema = z.object({
   name: z.string().min(2).max(50),
@@ -89,8 +90,14 @@ export async function POST(req: Request) {
 
     // Rejoint le groupe d'amis si la création vient d'un lien de groupe.
     if (groupToken) {
-      const group = await prisma.group.findUnique({
-        where: { token: groupToken },
+      // Borné à la saison active : un lien d'invitation d'une saison archivée
+      // ne doit plus faire entrer personne (son classement est figé).
+      const season = await getActiveSeason();
+      const group = await prisma.group.findFirst({
+        where: {
+          token: groupToken,
+          ...(season ? { seasonId: season.id } : {}),
+        },
         select: { id: true },
       });
       if (group) {

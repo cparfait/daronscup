@@ -6,7 +6,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMatches } from "@/lib/data/queries";
 import type { Match } from "@/lib/data/matches";
-import { jokerPhase, jokerBudget, JOKER_BUDGET } from "@/lib/jokers";
+import { jokerPhase, jokerBudget, seasonBudgets } from "@/lib/jokers";
+import {
+  getActiveSeason,
+  hasTwoLeggedTies,
+  isKnockoutStage,
+  needsPenaltyPick,
+} from "@/lib/season";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Matchs · DaronsFC" };
@@ -28,11 +34,17 @@ function groupByDay(matches: Match[]) {
 }
 
 export default async function MatchesPage() {
-  const [allMatches, session] = await Promise.all([getMatches(), auth()]);
+  const [allMatches, session, season] = await Promise.all([
+    getMatches(),
+    auth(),
+    getActiveSeason(),
+  ]);
   // Onglet « Matchs » = uniquement les matchs à venir (pas encore commencés).
   const now = Date.now();
   const matches = allMatches.filter((m) => new Date(m.kickoffAt).getTime() > now);
   const days = groupByDay(matches);
+  const twoLegged = hasTwoLeggedTies(season);
+  const budgets = seasonBudgets(season);
 
   // Pronostics de l'utilisateur + jokers utilisés par phase (pour l'inline).
   const predByMatch = new Map<
@@ -41,11 +53,11 @@ export default async function MatchesPage() {
   >();
   let groupJokers = 0;
   let knockoutJokers = 0;
-  if (session?.user?.id) {
+  if (session?.user?.id && season) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const preds = await (prisma.prediction.findMany as any)({
-        where: { userId: session.user.id },
+        where: { userId: session.user.id, match: { seasonId: season.id } },
         include: { match: { select: { stage: true } } },
       });
       for (const p of preds) {
@@ -69,20 +81,20 @@ export default async function MatchesPage() {
     const phase = jokerPhase(m.stage);
     const used = phase === "group" ? groupJokers : knockoutJokers;
     const thisJoker = predByMatch.get(m.id)?.joker ? 1 : 0;
-    return Math.max(0, JOKER_BUDGET[phase] - (used - thisJoker));
+    return Math.max(0, budgets[phase] - (used - thisJoker));
   }
 
   // Matchs à venir sans pronostic.
   const unpredicted = matches.filter((m) => !predByMatch.has(m.id)).length;
-  const hasKnockout = matches.some((m) => m.stage !== "GROUP");
+  const hasKnockout = matches.some((m) => isKnockoutStage(m.stage));
 
   return (
     <>
       {/* ── Header avec bouton "?" éliminatoires ── */}
       <PageHeader
         title="Matchs"
-        subtitle="À venir — Coupe du Monde 2026"
-        action={<KnockoutInfoModal hasKnockout={hasKnockout} />}
+        subtitle={season ? `À venir — ${season.name}` : "À venir"}
+        action={<KnockoutInfoModal hasKnockout={hasKnockout} twoLegged={twoLegged} />}
       />
 
       {/* ── Bulle : matchs sans prono ── */}
@@ -152,7 +164,9 @@ export default async function MatchesPage() {
                     match={m}
                     prediction={predByMatch.get(m.id)}
                     jokersLeft={jokersLeftFor(m)}
-                    jokerBudget={jokerBudget(m.stage)}
+                    jokerBudget={jokerBudget(m.stage, season)}
+                    askPenalty={needsPenaltyPick(season, m.stage)}
+                    twoLegged={twoLegged}
                   />
                 </div>
               ))}

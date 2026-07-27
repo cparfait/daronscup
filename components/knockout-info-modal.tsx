@@ -3,9 +3,18 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
-const SEEN_KEY = "knockout-info-v1-seen";
+// v2 : le contenu change avec le format de la compétition (aller-retour en C1),
+// on redemande donc l'affichage une fois.
+const SEEN_KEY = "knockout-info-v2-seen";
 
-export function KnockoutInfoModal({ hasKnockout }: { hasKnockout: boolean }) {
+export function KnockoutInfoModal({
+  hasKnockout,
+  twoLegged = false,
+}: {
+  hasKnockout: boolean;
+  /** Tours en aller-retour (Ligue des Champions) → règles différentes. */
+  twoLegged?: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -56,12 +65,23 @@ export function KnockoutInfoModal({ hasKnockout }: { hasKnockout: boolean }) {
             <ul className="mt-4 space-y-3 text-sm text-[var(--color-muted)]">
               <li className="flex items-start gap-2">
                 <span className="shrink-0">⚽</span>
-                <span>
-                  <span className="font-semibold text-[var(--color-cream)]">
-                    Un match, une vie.
-                  </span>{" "}
-                  Pas de deuxième chance : le perdant est éliminé.
-                </span>
+                {twoLegged ? (
+                  <span>
+                    <span className="font-semibold text-[var(--color-cream)]">
+                      Aller-retour.
+                    </span>{" "}
+                    Chaque tour se joue en deux manches (sauf la finale) : tu
+                    pronostiques <strong>chaque match</strong>, et c&apos;est le
+                    score cumulé qui qualifie.
+                  </span>
+                ) : (
+                  <span>
+                    <span className="font-semibold text-[var(--color-cream)]">
+                      Un match, une vie.
+                    </span>{" "}
+                    Pas de deuxième chance : le perdant est éliminé.
+                  </span>
+                )}
               </li>
               <li className="flex items-start gap-2">
                 <span className="shrink-0">📊</span>
@@ -75,13 +95,24 @@ export function KnockoutInfoModal({ hasKnockout }: { hasKnockout: boolean }) {
               </li>
               <li className="flex items-start gap-2">
                 <span className="shrink-0">🎯</span>
-                <span>
-                  <span className="font-semibold text-[var(--color-cream)]">
-                    Nul après 90 min ?
-                  </span>{" "}
-                  Désigne le vainqueur aux tirs au but — bonne pioche = bonus
-                  R + 2 pts !
-                </span>
+                {twoLegged ? (
+                  <span>
+                    <span className="font-semibold text-[var(--color-cream)]">
+                      Un nul, c&apos;est normal.
+                    </span>{" "}
+                    Sur une manche, le nul est un résultat comme un autre : pas
+                    de tirs au but à deviner. Sauf en <strong>finale</strong>,
+                    match sec — là, désigne le vainqueur aux tirs (bonus R + 2).
+                  </span>
+                ) : (
+                  <span>
+                    <span className="font-semibold text-[var(--color-cream)]">
+                      Nul après 90 min ?
+                    </span>{" "}
+                    Désigne le vainqueur aux tirs au but — bonne pioche = bonus
+                    R + 2 pts !
+                  </span>
+                )}
               </li>
               <li className="flex items-start gap-2">
                 <span className="shrink-0">⚠️</span>
@@ -89,8 +120,8 @@ export function KnockoutInfoModal({ hasKnockout }: { hasKnockout: boolean }) {
                   <span className="font-semibold text-[var(--color-cream)]">
                     Pas encore choisi ton champion ?
                   </span>{" "}
-                  Tu as jusqu&apos;à la fin des 16ème de finale — après il sera
-                  trop tard !
+                  C&apos;est jusqu&apos;au coup d&apos;envoi du premier match à
+                  élimination directe — après il sera trop tard !
                 </span>
               </li>
             </ul>

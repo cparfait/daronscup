@@ -4,12 +4,17 @@
 // La base (Prisma) est la source de vérité. Chaque getter renvoie un repli
 // vide si la base n'est pas joignable — l'app affiche alors des états vides
 // plutôt que de planter (utile tant que Postgres n'est pas démarré).
+//
+// ⚠️ TOUT est scopé à une SAISON (la saison active par défaut) : sans ça, les
+// matchs et pronos d'une compétition archivée se mélangeraient à ceux en cours.
+// Les getters qui servent aussi les pages d'archive acceptent un `seasonId`.
 // ─────────────────────────────────────────────
 
 import { prisma } from "@/lib/prisma";
 import { computePoints } from "@/lib/scoring";
 import { compareRanked } from "@/lib/ranking";
-import { jokerPhase, JOKER_BUDGET } from "@/lib/jokers";
+import { jokerPhase, seasonBudgets } from "@/lib/jokers";
+import { getActiveSeason, KNOCKOUT_STAGES } from "@/lib/season";
 import type {
   Match,
   StandingTeam,
@@ -21,6 +26,17 @@ import type {
   UserStats,
   JokerUsage,
 } from "./matches";
+import { LEAGUE_TABLE_KEY } from "./matches";
+
+/**
+ * Résout la saison à interroger : celle demandée, sinon la saison active.
+ * Renvoie `undefined` s'il n'y a aucune saison (base non amorcée) — les
+ * getters renvoient alors leur repli vide.
+ */
+async function resolveSeasonId(seasonId?: string): Promise<string | undefined> {
+  if (seasonId) return seasonId;
+  return (await getActiveSeason())?.id;
+}
 
 type DbMatch = {
   id: string;
@@ -70,10 +86,13 @@ function toUiMatch(m: DbMatch): Match {
   };
 }
 
-/** Tous les matchs, triés par coup d'envoi croissant. */
-export async function getMatches(): Promise<Match[]> {
+/** Tous les matchs d'une saison (active par défaut), par coup d'envoi croissant. */
+export async function getMatches(seasonId?: string): Promise<Match[]> {
   try {
+    const sid = await resolveSeasonId(seasonId);
+    if (!sid) return [];
     const rows = await prisma.match.findMany({
+      where: { seasonId: sid },
       include: { result: true },
       orderBy: { kickoffAt: "asc" },
     });
@@ -99,12 +118,18 @@ function parisDateStr(d: Date): string {
 /**
  * Le match de l'équipe de France prévu AUJOURD'HUI (fuseau Paris), ou null.
  * Sert à activer le thème tricolore. Renvoie le plus tôt s'il y en a plusieurs.
+ *
+ * Ne concerne que les compétitions de sélections : en Ligue des Champions, les
+ * emblèmes sont des écussons de clubs, il n'y a pas d'équipe de France.
  */
 export async function getFranceMatchToday(): Promise<Match | null> {
   try {
+    const season = await getActiveSeason();
+    if (!season || season.kind !== "NATIONS") return null;
     const now = Date.now();
     const rows = await prisma.match.findMany({
       where: {
+        seasonId: season.id,
         OR: [{ homeFlag: FRANCE_FLAG }, { awayFlag: FRANCE_FLAG }],
         // Fenêtre large (±1 j) pour couvrir tous les fuseaux, on affine ensuite.
         kickoffAt: {
@@ -165,9 +190,11 @@ export async function getPersonalStats(userId: string): Promise<PersonalStats> {
     championPick: null,
   };
   try {
+    const sid = await resolveSeasonId();
+    if (!sid) return empty;
     const [preds, championPick] = await Promise.all([
       prisma.prediction.findMany({
-        where: { userId },
+        where: { userId, match: { seasonId: sid } },
         include: { match: { include: { result: true } } },
       }),
       prisma.championPick.findUnique({
@@ -263,11 +290,14 @@ export async function getChampionPick(
 }
 
 /** Liste des équipes pariables (distinctes, triées), déduite des matchs. */
-export async function getChampionableTeams(): Promise<
-  { team: string; flag: string }[]
-> {
+export async function getChampionableTeams(
+  seasonId?: string
+): Promise<{ team: string; flag: string }[]> {
   try {
+    const sid = await resolveSeasonId(seasonId);
+    if (!sid) return [];
     const matches = await prisma.match.findMany({
+      where: { seasonId: sid },
       select: { homeTeam: true, homeFlag: true, awayTeam: true, awayFlag: true },
     });
     const byTeam = new Map<string, string>();
@@ -331,13 +361,14 @@ export async function getGroupChampionPicks(
 }
 
 /** Vainqueur du tournoi désigné manuellement par un admin (ou null). */
-export async function getChampionOverride(): Promise<{
-  team: string;
-  flag: string;
-} | null> {
+export async function getChampionOverride(
+  seasonId?: string
+): Promise<{ team: string; flag: string } | null> {
   try {
-    return await prisma.championOverride.findUnique({
-      where: { id: "singleton" },
+    const sid = await resolveSeasonId(seasonId);
+    if (!sid) return null;
+    return await prisma.championOverride.findFirst({
+      where: { seasonId: sid },
       select: { team: true, flag: true },
     });
   } catch {
@@ -345,23 +376,24 @@ export async function getChampionOverride(): Promise<{
   }
 }
 
-/** Le pari champion est-il encore ouvert ? (fermé quand tous les 16èmes de finale sont terminés). */
-export async function isChampionPickOpen(): Promise<boolean> {
+/**
+ * Le pari « vainqueur du tournoi » est-il encore ouvert ?
+ *
+ * Il se ferme au coup d'envoi du PREMIER match à élimination directe (16èmes en
+ * CdM, barrages en C1) : à partir de là, la moitié du plateau est connue et
+ * parier n'aurait plus de sel. Ouvert tant que la compétition n'a pas de
+ * calendrier (avant le tirage au sort).
+ */
+export async function isChampionPickOpen(seasonId?: string): Promise<boolean> {
   try {
-    const total = await prisma.match.count({ where: { stage: "ROUND_OF_32" } });
-    if (total === 0) {
-      // Pas de 16èmes dans la compétition → ferme au 1er match knockout
-      const firstKnockout = await prisma.match.findFirst({
-        where: { stage: { not: "GROUP" } },
-        orderBy: { kickoffAt: "asc" },
-        select: { kickoffAt: true },
-      });
-      return !firstKnockout || firstKnockout.kickoffAt.getTime() > Date.now();
-    }
-    const finished = await prisma.match.count({
-      where: { stage: "ROUND_OF_32", result: { status: "FINISHED" } },
+    const sid = await resolveSeasonId(seasonId);
+    if (!sid) return true;
+    const firstKnockout = await prisma.match.findFirst({
+      where: { seasonId: sid, stage: { in: KNOCKOUT_STAGES } },
+      orderBy: { kickoffAt: "asc" },
+      select: { kickoffAt: true },
     });
-    return finished < total;
+    return !firstKnockout || firstKnockout.kickoffAt.getTime() > Date.now();
   } catch {
     return true;
   }
@@ -380,9 +412,16 @@ export async function getMatch(id: string): Promise<Match | null> {
   }
 }
 
-/** Classements par groupe, calculés depuis les matchs de poule terminés. */
-export async function getStandings(): Promise<Record<string, StandingTeam[]>> {
-  const matches = await getMatches();
+/**
+ * Classements du premier tour, calculés depuis les matchs terminés.
+ *
+ * Coupe du Monde → une table par poule (clés "A", "B", …).
+ * Ligue des Champions → une seule table de 36 clubs (clé `LEAGUE_TABLE_KEY`).
+ */
+export async function getStandings(
+  seasonId?: string
+): Promise<Record<string, StandingTeam[]>> {
+  const matches = await getMatches(seasonId);
   const groups: Record<string, Map<string, StandingTeam>> = {};
 
   const ensure = (group: string, team: string, flag: string) => {
@@ -404,9 +443,12 @@ export async function getStandings(): Promise<Record<string, StandingTeam[]>> {
   };
 
   for (const m of matches) {
-    if (m.stage !== "GROUP" || !m.group) continue;
-    const home = ensure(m.group, m.homeTeam, m.homeFlag);
-    const away = ensure(m.group, m.awayTeam, m.awayFlag);
+    // Poules CdM → table par lettre de groupe ; phase de ligue C1 → table unique.
+    const key =
+      m.stage === "GROUP" ? m.group : m.stage === "LEAGUE" ? LEAGUE_TABLE_KEY : null;
+    if (!key) continue;
+    const home = ensure(key, m.homeTeam, m.homeFlag);
+    const away = ensure(key, m.awayTeam, m.awayFlag);
     if (!m.result) continue;
 
     const { homeScore: hs, awayScore: as } = m.result;
@@ -456,6 +498,8 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
   try {
     // Le classement est TOUJOURS scopé à un groupe : pas de classement global.
     if (memberIds.length === 0) return { entries: [], hasLive: false };
+    const sid = await resolveSeasonId();
+    if (!sid) return { entries: [], hasLive: false };
     const [users, liveResults] = await Promise.all([
       prisma.user.findMany({
         where: {
@@ -469,7 +513,7 @@ export async function getLiveLeaderboard(memberIds: string[]): Promise<{
         },
       }),
       prisma.result.findMany({
-        where: { status: "LIVE" },
+        where: { status: "LIVE", match: { seasonId: sid } },
         include: { match: { include: { predictions: true } } },
       }),
     ]);
@@ -650,11 +694,13 @@ export async function getPredictionComparison(
       }),
     ]);
 
-    // Tous les matchs déjà commencés (les pronos ne sont visibles qu'après le
-    // coup d'envoi) — pour afficher la grille complète et repérer les oublis.
+    // Tous les matchs de la saison déjà commencés (les pronos ne sont visibles
+    // qu'après le coup d'envoi) — grille complète, pour repérer les oublis.
+    const sid = await resolveSeasonId();
+    if (!sid) return null;
     const now = new Date();
     const matches = await prisma.match.findMany({
-      where: { kickoffAt: { lte: now } },
+      where: { seasonId: sid, kickoffAt: { lte: now } },
       include: { result: true },
       orderBy: { kickoffAt: "desc" },
     });
@@ -736,15 +782,18 @@ export async function getMyPrediction(
   }
 }
 
-/** Jokers utilisés par phase pour un joueur (vue d'ensemble). */
+/** Jokers utilisés par phase pour un joueur, sur la saison en cours. */
 export async function getJokerUsage(userId: string): Promise<JokerUsage> {
+  const season = await getActiveSeason().catch(() => null);
+  const budget = seasonBudgets(season);
   const empty: JokerUsage = {
-    group: { used: 0, budget: JOKER_BUDGET.group },
-    knockout: { used: 0, budget: JOKER_BUDGET.knockout },
+    group: { used: 0, budget: budget.group },
+    knockout: { used: 0, budget: budget.knockout },
   };
   try {
+    if (!season) return empty;
     const preds = await prisma.prediction.findMany({
-      where: { userId, joker: true },
+      where: { userId, joker: true, match: { seasonId: season.id } },
       include: { match: { select: { stage: true } } },
     });
     let group = 0;
@@ -754,8 +803,8 @@ export async function getJokerUsage(userId: string): Promise<JokerUsage> {
       else knockout++;
     }
     return {
-      group: { used: group, budget: JOKER_BUDGET.group },
-      knockout: { used: knockout, budget: JOKER_BUDGET.knockout },
+      group: { used: group, budget: budget.group },
+      knockout: { used: knockout, budget: budget.knockout },
     };
   } catch {
     return empty;
@@ -787,9 +836,13 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     badges: [],
   };
   try {
+    const sid = await resolveSeasonId();
+    if (!sid) return empty;
     const [score, jokersUsed, badges] = await Promise.all([
       prisma.score.findUnique({ where: { userId } }),
-      prisma.prediction.count({ where: { userId, joker: true } }),
+      prisma.prediction.count({
+        where: { userId, joker: true, match: { seasonId: sid } },
+      }),
       prisma.userBadge.findMany({
         where: { userId },
         include: { badge: true },
@@ -813,8 +866,10 @@ export async function getUserPredictions(
   limit = 10
 ): Promise<UserPrediction[]> {
   try {
+    const sid = await resolveSeasonId();
+    if (!sid) return [];
     const preds = await prisma.prediction.findMany({
-      where: { userId },
+      where: { userId, match: { seasonId: sid } },
       include: { match: { include: { result: true } } },
       orderBy: { submittedAt: "desc" },
       take: limit,

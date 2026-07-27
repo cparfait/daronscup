@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GROUP_COOKIE, newGroupToken, getMyGroups } from "@/lib/groups";
+import { getActiveSeason } from "@/lib/season";
 
 const createSchema = z.object({ name: z.string().min(2).max(40) });
 
@@ -28,12 +29,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Nom de groupe invalide (2 à 40 caractères)." }, { status: 400 });
   }
 
+  // Un groupe appartient à la saison en cours (classement + tchat propres).
+  const season = await getActiveSeason();
+  if (!season) {
+    return NextResponse.json(
+      { error: "Aucune saison en cours — impossible de créer un groupe." },
+      { status: 409 }
+    );
+  }
+
   try {
     const group = await prisma.group.create({
       data: {
         name: parsed.data.name.trim(),
         token: newGroupToken(),
         createdBy: session.user.id,
+        seasonId: season.id,
         members: { create: { userId: session.user.id, role: "OWNER" } },
       },
     });

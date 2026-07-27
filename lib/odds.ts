@@ -11,7 +11,10 @@
 
 const BASE_URL = "https://api.the-odds-api.com/v4";
 
-/** Clé de sport The Odds API (défaut : Coupe du Monde). Surchageable par env. */
+/**
+ * Clé de sport The Odds API de repli. En pratique, la clé vient de la saison
+ * active (`Season.oddsSport`) ; l'env ne sert que de secours / surcharge.
+ */
 export const ODDS_SPORT = process.env.ODDS_API_SPORT ?? "soccer_fifa_world_cup";
 /** Région bookmakers (eu couvre bien les compétitions internationales). */
 export const ODDS_REGION = process.env.ODDS_API_REGION ?? "eu";
@@ -63,15 +66,18 @@ function toOddsMatch(ev: ApiEvent): OddsMatch | null {
 }
 
 /**
- * Récupère les cotes 1X2 en direct. Renvoie null si aucune clé n'est
- * configurée (l'appelant bascule alors sur les données d'exemple).
+ * Récupère les cotes 1X2 en direct pour un sport donné (défaut : la clé d'env).
+ * Renvoie null si aucune clé API n'est configurée — le scoring retombe alors
+ * sur le barème classique.
  */
-export async function fetchLiveOdds(): Promise<OddsMatch[] | null> {
+export async function fetchLiveOdds(
+  sport: string = ODDS_SPORT
+): Promise<OddsMatch[] | null> {
   const key = process.env.ODDS_API_KEY;
   if (!key) return null;
 
   const url =
-    `${BASE_URL}/sports/${ODDS_SPORT}/odds/?apiKey=${key}` +
+    `${BASE_URL}/sports/${sport}/odds/?apiKey=${key}` +
     `&regions=${ODDS_REGION}&markets=h2h&oddsFormat=decimal`;
 
   const res = await fetch(url, { cache: "no-store" });

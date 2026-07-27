@@ -13,6 +13,63 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
+// Saisons (compétitions successives)
+//
+// L'app suit UNE compétition à la fois : la saison `active`. Les saisons
+// précédentes sont `closedAt` et consultables en archive. Tout ce qui est
+// propre à une compétition (matchs, groupes d'amis, palmarès) est rattaché à
+// une saison ; les agrégats de jeu (Score, UserBadge, ChampionPick) sont un
+// CACHE de la saison active, figé dans `SeasonArchive` à la clôture.
+// ─────────────────────────────────────────────
+
+model Season {
+  id        String     @id @default(cuid())
+  code      String     @unique // "WC-2026", "CL-2026-2027"
+  name      String // "Coupe du Monde 2026"
+  shortName String // "CdM 2026"
+  kind      SeasonKind @default(NATIONS) // NATIONS = drapeaux, CLUBS = écussons
+  emoji     String     @default("🏆") // repli quand `logo` est absent
+  // Logo de la compétition, chemin servi depuis `public/` (ex. "/seasons/c1.svg").
+  // Doit être transparent et lisible sur fond sombre. Null → on affiche l'emoji.
+  logo      String?
+
+  // ── Sources de données ──
+  competition String // code football-data.org ("WC", "CL")
+  // Année de départ de la saison côté API (`?season=2026`). Indispensable pour
+  // les compétitions annuelles : sans ça, l'API renvoie sa « currentSeason »,
+  // qui peut être l'édition précédente.
+  apiSeason   String?
+  // Clé sport The Odds API ("soccer_fifa_world_cup", "soccer_uefa_champs_league").
+  oddsSport   String?
+
+  // ── Règles du jeu propres à la saison ──
+  jokerLeagueBudget   Int @default(4) // poules / phase de ligue
+  jokerKnockoutBudget Int @default(2) // phase à élimination directe
+  championBonus       Int @default(50)
+
+  active    Boolean   @default(false) // une seule saison active à la fois
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  matches          Match[]
+  groups           Group[]
+  archive          SeasonArchive?
+  championOverride ChampionOverride?
+
+  @@index([active])
+}
+
+// Palmarès FIGÉ d'une saison clôturée : classement final par groupe d'amis,
+// champions pariés, badges décernés, stats. Permet de vider les agrégats
+// (Score / UserBadge / ChampionPick) pour la saison suivante sans rien perdre.
+model SeasonArchive {
+  seasonId  String   @id
+  data      Json
+  createdAt DateTime @default(now())
+  season    Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
 // Domaine métier
 // ─────────────────────────────────────────────
 
@@ -53,8 +110,15 @@ model Group {
   token     String        @unique // lien d'invitation unique et stable
   createdBy String
   createdAt DateTime      @default(now())
+  // Saison du groupe : chaque saison a ses propres groupes (donc son classement
+  // et son tchat). `null` = groupe hérité d'avant les saisons (rattaché au
+  // démarrage par `bootstrapSeasons`).
+  seasonId  String?
+  season    Season?       @relation(fields: [seasonId], references: [id])
   members   GroupMember[]
   messages  Message[]
+
+  @@index([seasonId])
 }
 
 model GroupMember {
@@ -73,12 +137,19 @@ model Match {
   id          String       @id @default(cuid())
   homeTeam    String
   awayTeam    String
+  // Emblème de l'équipe : soit un CODE drapeau flagcdn ("fr", "gb-eng") pour une
+  // sélection nationale, soit une URL d'écusson de club (crests.football-data.org).
+  // Le composant <Flag> gère les deux (cf. lib/flags.ts → `isCrestUrl`).
   homeFlag    String
   awayFlag    String
   kickoffAt   DateTime
   stage       Stage
   group       String?
   matchday    Int? // numéro de journée (pour le joker / filtres)
+  // Saison de rattachement. `null` = match hérité d'avant les saisons (rattaché
+  // au démarrage par `bootstrapSeasons`).
+  seasonId    String?
+  season      Season?      @relation(fields: [seasonId], references: [id])
   externalId  Int?         @unique // id API-Football (clé d'idempotence du sync)
   // Cotes 1X2 figées (The Odds API) — servent au scoring « façon MPP » : plus
   // l'issue est improbable, plus le bon résultat rapporte. Capturées ~toutes
@@ -91,6 +162,7 @@ model Match {
   result      Result?
 
   @@index([kickoffAt])
+  @@index([seasonId, kickoffAt])
 }
 
 model Prediction {
@@ -144,12 +216,17 @@ model ChampionPick {
 
 // Vainqueur du tournoi désigné MANUELLEMENT par un admin — pour le cas d'une
 // finale gagnée aux tirs au but (score nul, vainqueur indéductible du score
-// fourni par l'API). Singleton (id = "singleton"). Prioritaire sur le score.
+// fourni par l'API). Un au plus par saison. Prioritaire sur le score.
+//
+// `id` reste "singleton" pour la ligne héritée d'avant les saisons ; les
+// nouvelles saisons utilisent un cuid. La clé métier est `seasonId`.
 model ChampionOverride {
-  id    String   @id @default("singleton")
-  team  String
-  flag  String
-  setAt DateTime @default(now()) @updatedAt
+  id       String   @id @default("singleton")
+  team     String
+  flag     String
+  setAt    DateTime @default(now()) @updatedAt
+  seasonId String?  @unique
+  season   Season?  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -272,8 +349,15 @@ enum GroupRole {
   MEMBER
 }
 
+enum SeasonKind {
+  NATIONS // sélections nationales → drapeaux (Coupe du Monde, Euro…)
+  CLUBS //   clubs → écussons (Ligue des Champions…)
+}
+
 enum Stage {
-  GROUP
+  GROUP //   phase de poules (CdM)
+  LEAGUE //  phase de ligue (C1 : 36 clubs, un seul classement, 8 journées)
+  PLAYOFF // barrages d'accès aux 8èmes (C1), en aller-retour
   ROUND_OF_32
   ROUND_OF_16
   QUARTER

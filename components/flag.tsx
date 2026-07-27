@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isCrestUrl } from "@/lib/flags";
 import { cn } from "@/lib/utils";
 
 /**
- * Drapeau d'une nation, rendu en image servie en local (public/flags) avec
- * repli flagcdn.com — compatible PC, iOS et Android (contrairement aux emojis
- * drapeaux, non rendus sous Windows). Pré-télécharger via `npm run flags`.
+ * Emblème d'une équipe, rendu en image — compatible PC, iOS et Android
+ * (contrairement aux emojis drapeaux, non rendus sous Windows).
  *
- * `code` est un code flagcdn (ex. "fr", "gb-eng"). Vide → drapeau neutre.
- * La taille se contrôle via `className` (ex. "h-6 w-8").
+ * `code` accepte les deux formes stockées en base (cf. lib/flags.ts) :
+ *   • code flagcdn d'une nation (ex. "fr") → servi en local (public/flags,
+ *     pré-téléchargeable via `npm run flags`) avec repli flagcdn.com ;
+ *   • URL d'écusson de club (Ligue des Champions) → servie telle quelle.
+ * Vide → emblème neutre. La taille se contrôle via `className` ("h-6 w-8").
  *
- * `team` (optionnel) : nom de l'équipe. Si fourni, le drapeau devient cliquable
- * et mène à son classement de poule (`/standings?team=…`).
+ * `team` (optionnel) : nom de l'équipe. Si fourni, l'emblème devient cliquable
+ * et mène à son classement (`/standings?team=…`).
  *
  * Robustesse iOS/PWA : si le CDN échoue (réseau mobile capricieux), on
  * re-tente automatiquement la requête au lieu de laisser un drapeau vide qui
@@ -29,27 +32,36 @@ export function Flag({
   className?: string;
   team?: string;
 }) {
-  const base = "inline-block shrink-0 rounded-[3px] object-cover";
+  const crest = isCrestUrl(code);
+  // Un écusson est un logo (souvent non rectangulaire, avec du transparent) :
+  // `contain` évite de le rogner dans un cadre au format drapeau.
+  const base = cn(
+    "inline-block shrink-0",
+    crest ? "object-contain" : "rounded-[3px] object-cover"
+  );
   const [attempt, setAttempt] = useState(0);
   const router = useRouter();
 
+  const src = crest
+    ? // Écusson de club : URL absolue, cache-bust au retry.
+      `${code}${attempt > 0 ? `${code.includes("?") ? "&" : "?"}retry=${attempt}` : ""}`
+    : // Drapeau : local d'abord (public/flags) pour éviter toute requête réseau ;
+      // repli sur flagcdn.com si le fichier local manque (pré-téléchargement
+      // non lancé ou code non couvert), avec cache-bust au 2e échec.
+      attempt === 0
+      ? `/flags/${code}.svg`
+      : `https://flagcdn.com/${code}.svg${attempt > 1 ? `?retry=${attempt}` : ""}`;
+
   const img = !code ? (
     <span
-      className={cn(base, "bg-[var(--color-surface-2)]", className)}
+      className={cn(base, "rounded-[3px] bg-[var(--color-surface-2)]", className)}
       aria-hidden
     />
   ) : (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       key={attempt}
-      // Local d'abord (public/flags) pour éviter toute requête réseau ; repli
-      // sur flagcdn.com si le fichier local manque (pré-téléchargement non
-      // lancé ou code non couvert), avec cache-bust au 2e échec.
-      src={
-        attempt === 0
-          ? `/flags/${code}.svg`
-          : `https://flagcdn.com/${code}.svg${attempt > 1 ? `?retry=${attempt}` : ""}`
-      }
+      src={src}
       alt=""
       decoding="async"
       onError={() => {

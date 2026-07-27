@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { SYSTEM_USER_EMAIL, SYSTEM_USER_NAME } from "./match-recap";
+import { SEASON_SEEDS, WC_2026 } from "./season";
 
 const BADGES = [
   { key: "premier_pas", label: "Premier pas", emoji: "👣", description: "Ton tout premier pronostic." },
@@ -72,6 +73,61 @@ async function bootstrapSystemUser(): Promise<void> {
   });
 }
 
+/**
+ * Amorce le catalogue des saisons et rattache les données héritées.
+ *
+ * Idempotent et NON destructif : ne crée que ce qui manque, ne désactive jamais
+ * une saison, ne remet aucun score à zéro. La bascule d'une saison à l'autre
+ * (archivage + remise à zéro) est une action explicite : console admin, ou
+ * `npm run season:switch`.
+ *
+ * Migration des données d'avant les saisons : les matchs et groupes sans
+ * `seasonId`, ainsi que l'éventuelle désignation manuelle du champion, sont
+ * rattachés à la Coupe du Monde 2026 — la seule compétition qu'a connue l'app
+ * jusqu'ici.
+ */
+async function bootstrapSeasons(): Promise<void> {
+  for (const seed of SEASON_SEEDS) {
+    await prisma.season.upsert({
+      where: { code: seed.code },
+      // On ne réécrit PAS une saison existante : l'admin a pu ajuster les
+      // budgets de jokers depuis la console.
+      update: {},
+      create: seed,
+    });
+  }
+
+  const wc = await prisma.season.findUnique({
+    where: { code: WC_2026.code },
+    select: { id: true },
+  });
+  if (!wc) return;
+
+  // Rattachement des données héritées (une seule fois : les compteurs tombent
+  // à 0 ensuite).
+  const [matches, groups] = await Promise.all([
+    prisma.match.updateMany({ where: { seasonId: null }, data: { seasonId: wc.id } }),
+    prisma.group.updateMany({ where: { seasonId: null }, data: { seasonId: wc.id } }),
+  ]);
+  await prisma.championOverride.updateMany({
+    where: { id: "singleton", seasonId: null },
+    data: { seasonId: wc.id },
+  });
+  if (matches.count > 0 || groups.count > 0) {
+    console.log(
+      `[init] saisons — ${matches.count} matchs et ${groups.count} groupes rattachés à « ${WC_2026.name} »`
+    );
+  }
+
+  // Aucune saison active (première installation, ou migration) → on active la
+  // Coupe du Monde pour que l'app continue d'afficher ce qu'elle affichait.
+  const active = await prisma.season.count({ where: { active: true } });
+  if (active === 0) {
+    await prisma.season.update({ where: { id: wc.id }, data: { active: true } });
+    console.log(`[init] saison active par défaut : « ${WC_2026.name} »`);
+  }
+}
+
 let done = false;
 
 export async function maybeInit(): Promise<void> {
@@ -83,6 +139,11 @@ export async function maybeInit(): Promise<void> {
     }
   } catch (e) {
     console.error("[init] échec seed badges:", e instanceof Error ? e.message : e);
+  }
+  try {
+    await bootstrapSeasons();
+  } catch (e) {
+    console.error("[init] échec bootstrap saisons:", e instanceof Error ? e.message : e);
   }
   try {
     await bootstrapAdmin();

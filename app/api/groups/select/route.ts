@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 import { GROUP_COOKIE } from "@/lib/groups";
 
 const selectSchema = z.object({ groupId: z.string().min(1) });
@@ -27,8 +28,14 @@ export async function POST(req: Request) {
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Tu n'es pas membre de ce groupe." }, { status: 403 });
     }
-    const exists = await prisma.group.findUnique({
-      where: { id: parsed.data.groupId },
+    // Borné à la saison active : un groupe archivé n'est plus consultable en
+    // « comme un membre » (son classement et son tchat sont figés).
+    const season = await getActiveSeason();
+    const exists = await prisma.group.findFirst({
+      where: {
+        id: parsed.data.groupId,
+        ...(season ? { seasonId: season.id } : {}),
+      },
       select: { id: true },
     });
     if (!exists) {

@@ -14,6 +14,7 @@ import {
   getAdminPredictions,
 } from "@/lib/data/admin";
 import { getChampionableTeams, getChampionOverride } from "@/lib/data/queries";
+import { getSeasons } from "@/lib/season";
 
 export const metadata = { title: "Admin · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -24,17 +25,27 @@ export default async function AdminPage() {
   if (!session?.user) redirect("/login");
   if (session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const [stats, users, matches, allMatches, groups, predictionMap, championTeams, championOverride] =
-    await Promise.all([
-      getAdminStats(),
-      getAdminUsers(),
-      getMatchesForResultEntry(),
-      getAllMatchesBrief(),
-      getAdminGroups(),
-      getAdminPredictions(),
-      getChampionableTeams(),
-      getChampionOverride(),
-    ]);
+  const [
+    stats,
+    users,
+    matches,
+    allMatches,
+    groups,
+    predictionMap,
+    championTeams,
+    championOverride,
+    seasons,
+  ] = await Promise.all([
+    getAdminStats(),
+    getAdminUsers(),
+    getMatchesForResultEntry(),
+    getAllMatchesBrief(),
+    getAdminGroups(),
+    getAdminPredictions(),
+    getChampionableTeams(),
+    getChampionOverride(),
+    getSeasons(),
+  ]);
 
   const STATS = [
     { label: "Joueurs actifs", value: `${stats.activePlayers}/${stats.users}`, emoji: "👥" },
@@ -99,6 +110,7 @@ export default async function AdminPage() {
         currentUserId={session.user.id}
         championTeams={championTeams}
         championOverride={championOverride}
+        seasons={seasons}
       />
     </main>
   );

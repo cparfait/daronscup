@@ -20,6 +20,8 @@ import type {
   JokerUsage,
 } from "@/lib/data/matches";
 import { computePoints } from "@/lib/scoring";
+import { getActiveSeason } from "@/lib/season";
+import { firstPhaseLabel } from "@/lib/jokers";
 import {
   Trophy,
   Target,
@@ -41,6 +43,9 @@ export default async function ProfilePage() {
   // Clé VAPID publique lue au runtime (NEXT_PUBLIC_* est figé au build, on la
   // passe donc en prop depuis le serveur pour qu'elle marche via Portainer).
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+
+  // Saison en cours : le libellé du premier tour en dépend (poules / ligue).
+  const season = await getActiveSeason();
 
   let badges: BadgeDef[] = [];
   let stats: UserStats | null = null;
@@ -155,10 +160,28 @@ export default async function ProfilePage() {
           </span>
           <div className="flex-1">
             <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
-              Ton Wrapped CdM
+              Ton Wrapped de la saison
             </p>
             <p className="text-xs text-[var(--color-muted)]">
               Taux de réussite, équipe fétiche, meilleur prono…
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
+      {/* Lien vers les saisons archivées */}
+      <Link href="/archives" className="mb-6 block">
+        <Card className="glass card-hover flex items-center gap-3 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-pitch)]/15 text-lg">
+            🗄️
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Les archives
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Palmarès et résultats des saisons passées
             </p>
           </div>
           <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
@@ -179,7 +202,7 @@ export default async function ProfilePage() {
           </div>
           <div className="flex flex-col gap-3">
             {([
-              { label: "Phase de poules", data: jokers.group },
+              { label: firstPhaseLabel(season), data: jokers.group },
               { label: "Phase finale", data: jokers.knockout },
             ] as const).map(({ label, data }) => {
               const left = Math.max(0, data.budget - data.used);

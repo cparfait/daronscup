@@ -3,14 +3,20 @@
 // l'installation. Le contenu applicatif (API, pages) reste en passthrough
 // réseau pour ne jamais servir de données périmées (appli temps réel).
 //
-// SEULE EXCEPTION : les assets immuables (drapeaux flagcdn, logos API-Football)
+// SEULE EXCEPTION : les assets immuables (drapeaux flagcdn, écussons de clubs,
+// logos API-Football)
 // sont mis en cache (cache-first). Ils ne changent jamais, donc aucun risque de
 // périmé — et ça corrige les drapeaux manquants sur iOS quand le réseau mobile
 // avorte une requête (avant, un échec laissait un drapeau vide jusqu'à ce qu'on
 // change de menu).
 
-const ASSET_CACHE = "daronsfc-assets-v1";
-const ASSET_HOSTS = ["flagcdn.com", "media.api-sports.io"];
+// v2 : ajout des écussons de clubs (Ligue des Champions).
+const ASSET_CACHE = "daronsfc-assets-v2";
+const ASSET_HOSTS = [
+  "flagcdn.com",
+  "crests.football-data.org",
+  "media.api-sports.io",
+];
 
 self.addEventListener("install", () => self.skipWaiting());
 

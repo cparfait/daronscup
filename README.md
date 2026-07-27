@@ -2,7 +2,7 @@
 
 # ⚽ DaronsFC
 
-### Le jeu de pronos de la Coupe du Monde, entre darons (et fiers de l'être) 🏆
+### Le jeu de pronos entre darons (et fiers de l'être) 🏆
 
 *Pronostique, mets ton joker, chambre tes potes dans le tchat, et grimpe au classement.*
 
@@ -20,22 +20,59 @@
 
 ## 🎯 C'est quoi ?
 
-**DaronsFC** est une appli web (PWA installable) de pronostics pour la **Coupe du Monde 2026**, pensée pour une bande de potes. Chacun prédit le score des matchs, gagne des points selon sa lucidité, déclenche des **jokers** pour doubler la mise, débloque des **badges**, et défend son rang dans le **classement de son groupe** — le tout avec un **tchat** pour mettre l'ambiance.
+**DaronsFC** est une appli web (PWA installable) de pronostics de foot, pensée pour une bande de potes. Chacun prédit le score des matchs, gagne des points selon sa lucidité, déclenche des **jokers** pour doubler la mise, débloque des **badges**, et défend son rang dans le **classement de son groupe** — le tout avec un **tchat** pour mettre l'ambiance.
+
+L'appli suit **une compétition à la fois**, la « saison » : la **Ligue des Champions 2026/2027** est celle en cours, la **Coupe du Monde 2026** est archivée (cf. [Saisons](#-saisons)).
 
 Pas de données bidon : les matchs et scores viennent en direct de l'API **football-data.org**, synchronisés automatiquement.
 
 ## ✨ Les fonctionnalités
 
 - 🔮 **Pronostics** — saisie du score au but près, modifiable jusqu'au coup d'envoi (verrouillé après, anti-triche).
-- 🃏 **Jokers** — double les points d'un prono. Budget par phase : **4** en poules, **2** en phase finale.
+- 🃏 **Jokers** — double les points d'un prono. Budget par phase, réglé par saison : **8 / 4** en Ligue des Champions (8 journées de phase de ligue), **4 / 2** en Coupe du Monde.
 - 🏆 **Classement live** — points acquis + points provisoires pendant les matchs en cours, avec flèches d'évolution ▲▼.
 - 👥 **Groupes** — crée ta bande via un lien d'invitation, chacun son classement.
 - 💬 **Tchat de groupe** — messages, réactions emoji, épinglage (admin), notifications push.
 - 🤖 **Récaps automatiques** — après chaque match, un bandeau récap tombe dans le tchat : podium, meilleurs pronos, jokers gagnés/grillés, changement de leader.
 - 🎖️ **Badges** — 10 hauts faits à débloquer (voir plus bas).
-- 🇫🇷 **Thème tricolore** — l'interface passe en **bleu nuit / bleu-blanc-rouge** les jours de match des Bleus. Allez les Bleus ! 💙🤍❤️
+- 🇫🇷 **Thème tricolore** — sur les compétitions de sélections, l'interface passe en **bleu nuit / bleu-blanc-rouge** les jours de match des Bleus. Allez les Bleus ! 💙🤍❤️
 - 📲 **Notifications push** — résultat tombé, tu t'es fait doubler, récap… directement sur ton téléphone.
-- 📊 **Classements des poules** — le tableau officiel des groupes de la CdM.
+- 📊 **Classements officiels** — la phase de ligue à 36 clubs (avec les barres de qualification 1-8 / 9-24 / 25-36) ou les poules, selon la compétition, et le tableau de la phase finale.
+- 🗄️ **Archives** — chaque saison terminée garde son palmarès figé (classement final par groupe, vainqueur, badges) et tous ses résultats.
+
+## 🗓️ Saisons
+
+L'appli suit **une compétition active à la fois**. Tout ce qui est propre à une compétition — matchs, résultats, pronostics, groupes d'amis et leur tchat — est rattaché à une saison. Les agrégats de jeu (points, badges, pari champion) sont ceux de la saison en cours ; ils sont **figés dans les archives** à la clôture, puis remis à zéro.
+
+| Saison | Format | Emblèmes | Jokers |
+|---|---|---|:---:|
+| `CL-2026-2027` — Ligue des Champions 2026/2027 | Phase de ligue à 36 clubs (8 journées) → barrages → finale, tours en **aller-retour** sauf la finale | écussons de clubs | 8 / 4 |
+| `WC-2026` — Coupe du Monde 2026 *(archivée)* | Poules A→L → 16èmes → finale, matchs secs | drapeaux de nations | 4 / 2 |
+
+Les particularités du format sont prises en compte de bout en bout :
+
+- **Phase de ligue** — un seul classement de 36 clubs, avec les barres de qualification (1-8 qualifiés, 9-24 barrages, 25-36 éliminés).
+- **Aller-retour** — les deux manches sont pronostiquées séparément ; le tableau final affiche le **score cumulé**, qui qualifie. Sur une manche, un nul est un résultat normal : on ne demande le vainqueur aux tirs au but **qu'en finale** (match sec).
+- **Journées** — la clé d'une journée combine l'étape et le numéro, car en C1 les manches aller/retour portent `matchday` 1 et 2, qui collisionneraient avec les journées 1 et 2 de la phase de ligue.
+- **Cotes** — l'appariement avec The Odds API se fait par code drapeau pour les sélections, et par **clé canonique de nom de club** sinon (« FC Bayern München » ↔ « Bayern Munich », cf. `lib/teams.ts`).
+
+### Basculer de saison
+
+En CLI :
+
+```bash
+npm run season:switch                 # archive la saison active → ouvre CL-2026-2027
+npm run season:switch -- WC-2026      # cible explicite
+npm run season:switch -- --clone-groups   # reprend les groupes de la saison passée
+```
+
+…ou depuis la console admin, panneau **🗓️ Saisons** (« Archiver la saison », puis « Ouvrir et remettre à zéro »).
+
+La bascule enchaîne : palmarès figé + 👑 Daronissime décerné → nouvelle saison active → points, badges et paris champion remis à zéro. Les matchs et pronos des saisons passées ne sont jamais touchés.
+
+La nouvelle saison démarre **sans groupe** : chacun recrée sa bande depuis l'onglet Groupes (l'occasion de rebattre les cartes). `--clone-groups` — ou la case correspondante dans la console admin — reprend au contraire les groupes et leurs membres de la saison passée, avec un tchat vierge et de **nouveaux liens d'invitation**.
+
+> ℹ️ Entre deux saisons, l'API ne publie pas encore le calendrier (la phase de ligue de C1 est tirée au sort fin août). La synchro l'annonce calmement (`calendrier CL 2026 pas encore publié`) et retentera à chaque cycle — rien à faire.
 
 ## 🧮 Le barème (façon MPP, indexé sur les cotes)
 
@@ -105,9 +142,9 @@ npm run dev                  # http://localhost:3000
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Connexion Google |
 | `DATABASE_URL` / `DIRECT_URL` | Postgres |
 | `FOOTBALL_DATA_TOKEN` | Token [football-data.org](https://www.football-data.org/client/register) (gratuit) |
-| `FOOTBALL_DATA_COMPETITION` | Compétition à synchroniser (défaut `WC`) |
+| `FOOTBALL_DATA_COMPETITION` | Repli seulement — la compétition vient de la saison active (`Season.competition`) |
 | `ODDS_API_KEY` | Clé [The Odds API](https://the-odds-api.com) (gratuit) pour le barème aux cotes — sans elle, repli barème classique |
-| `ODDS_API_SPORT` / `ODDS_API_REGION` | Sport (défaut `soccer_fifa_world_cup`) et région bookmakers (défaut `eu`) |
+| `ODDS_API_SPORT` / `ODDS_API_REGION` | Sport (repli ; sinon `Season.oddsSport`) et région bookmakers (défaut `eu`) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Compte admin créé au démarrage |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Push (`npx web-push generate-vapid-keys`) |
 | `SYNC_LIVE_SECONDS` / `SYNC_IDLE_MINUTES` | Rythme de sync (défaut 90 s / 30 min) |
@@ -122,7 +159,8 @@ npm run dev                  # http://localhost:3000
 | `npm run db:seed` | Seed du catalogue de badges |
 | `npm run db:studio` | Prisma Studio |
 | `npm run sync` | Sync manuelle des matchs |
-| `npm run rescore` | Recalcule tous les points (après changement de barème) |
+| `npm run rescore` | Recalcule les points de la saison en cours (après changement de barème) |
+| `npm run season:switch` | Archive la saison active et ouvre la suivante |
 | `npm run flags` | Pré-télécharge les drapeaux dans `public/flags/` |
 | `npm test` | Lance les tests unitaires (Vitest) |
 
@@ -130,7 +168,8 @@ npm run dev                  # http://localhost:3000
 
 - **Synchronisation adaptative** — un hook d'instrumentation Next.js synchronise les scores en boucle : **rapide** (90 s) quand un match est en cours ou imminent, **lent** (30 min) sinon. Sous la limite de 10 req/min de l'API, sans plafond journalier.
 - **Calcul des points centralisé** — une seule fonction `computePoints`, pure et testable, alimente le scoring, le recalcul, le live et les comparaisons. Les badges sont **réconciliés** à chaque recalcul (attribués *et* retirés s'ils ne sont plus mérités).
-- **Drapeaux fiables** — rendus en image (flagcdn) avec auto-retry et cache service-worker, pour ne jamais afficher un drapeau manquant sur iOS.
+- **Emblèmes fiables** — drapeaux de nations (flagcdn) ou écussons de clubs (crests.football-data.org), rendus en image avec auto-retry et cache service-worker, pour ne jamais afficher un emblème manquant sur iOS. `Match.homeFlag` porte l'un ou l'autre (code ou URL), `<Flag>` distingue les deux.
+- **Édition épinglée** — la synchro passe `?season=YYYY` : sans ça, football-data renvoie sa « currentSeason », qui entre deux éditions est encore la précédente — on importerait l'ancien calendrier dans la nouvelle saison.
 
 ## 📦 Déploiement
 

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
 import { getPersonalStats } from "@/lib/data/queries";
+import { getActiveSeason } from "@/lib/season";
 
 export const metadata = { title: "Mes stats · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -14,9 +15,10 @@ const one = (x: number) => (Math.round(x * 10) / 10).toString().replace(".", ","
 export default async function StatsPage() {
   const session = await auth();
   const userId = session?.user?.id;
-  const stats = userId
-    ? await getPersonalStats(userId)
-    : null;
+  const [stats, season] = await Promise.all([
+    userId ? getPersonalStats(userId) : null,
+    getActiveSeason(),
+  ]);
 
   const STATS = stats
     ? [
@@ -38,10 +40,10 @@ export default async function StatsPage() {
       </Link>
 
       <h1 className="mb-1 font-[family-name:var(--font-display)] text-2xl font-extrabold">
-        Ton Wrapped CdM 🎬
+        Ton Wrapped 🎬
       </h1>
       <p className="mb-6 text-sm text-[var(--color-muted)]">
-        Ta Coupe du Monde en chiffres.
+        {season ? `${season.name} en chiffres.` : "Ta saison en chiffres."}
       </p>
 
       {!stats || stats.totalPredictions === 0 ? (

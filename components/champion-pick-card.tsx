@@ -19,10 +19,16 @@ export function ChampionPickCard({
   pick,
   teams,
   open,
+  question = "Qui sera champion ?",
+  bonus = 50,
 }: {
   pick: Team | null;
   teams: Team[];
   open: boolean;
+  /** Accroche adaptée à la compétition (« Qui sera champion du monde ? »…). */
+  question?: string;
+  /** Points bonus si l'équipe choisie gagne (cf. `Season.championBonus`). */
+  bonus?: number;
 }) {
   const router = useRouter();
   const [picking, setPicking] = useState(false);
@@ -48,7 +54,7 @@ export function ChampionPickCard({
           </div>
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-gold)]/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">
             <Lock className="size-3" />
-            +50 si vainqueur
+            +{bonus} si vainqueur
           </span>
           <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
         </Card>
@@ -95,12 +101,14 @@ export function ChampionPickCard({
         <span className="text-2xl">🏆</span>
         <div className="min-w-0 flex-1">
           <h3 className="font-[family-name:var(--font-display)] text-base font-bold text-[var(--color-cream)]">
-            Qui sera champion du monde ?
+            {question}
           </h3>
           <p className="mt-1 text-sm leading-relaxed text-[var(--color-muted)]">
             Désigne ton vainqueur du tournoi et empoche{" "}
-            <strong className="text-[var(--color-gold)]">+50 points bonus</strong>{" "}
-            s&apos;il soulève la coupe. Attention :{" "}
+            <strong className="text-[var(--color-gold)]">
+              +{bonus} points bonus
+            </strong>{" "}
+            s&apos;il soulève le trophée. Attention&nbsp;:{" "}
             <strong className="text-[var(--color-cream)]">
               un seul choix, définitif
             </strong>{" "}

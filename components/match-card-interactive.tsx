@@ -19,7 +19,8 @@ import { Flag } from "./flag";
 import { cn, formatKickoffTime } from "@/lib/utils";
 import { computePoints } from "@/lib/scoring";
 import { outcomeResultPoints } from "@/lib/odds";
-import { STAGE_LABELS, type Match } from "@/lib/data/matches";
+import { type Match } from "@/lib/data/matches";
+import { matchLabel } from "@/lib/matchday";
 
 type Props = {
   match: Match;
@@ -32,9 +33,14 @@ type Props = {
   };
   jokersLeft: number;
   jokerBudget: number;
+  /**
+   * Demander le vainqueur aux tirs au but sur un prono de nul ? Faux sur une
+   * manche d'aller-retour, où le nul est un résultat normal (cf. lib/season.ts).
+   */
+  askPenalty?: boolean;
+  /** Tours à élimination directe en aller-retour (C1) → libellés « aller/retour ». */
+  twoLegged?: boolean;
 };
-
-const KNOCKOUT_STAGES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER", "SEMI", "THIRD_PLACE", "FINAL"]);
 
 /**
  * Colonne « issue » d'une équipe : drapeau + nom + points en jeu (si cotes) +
@@ -128,6 +134,8 @@ export function MatchCardInteractive({
   prediction,
   jokersLeft,
   jokerBudget,
+  askPenalty = true,
+  twoLegged = false,
 }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -155,9 +163,8 @@ export function MatchCardInteractive({
   const live = match.live;
   const locked = Date.now() >= new Date(match.kickoffAt).getTime();
   const readOnly = finished || locked || !!live;
-  const group = match.group ? `Groupe ${match.group}` : STAGE_LABELS[match.stage];
+  const group = matchLabel(match.stage, match.group, match.matchday, twoLegged);
   const canUseJoker = jokersLeft > 0 || joker;
-  const isKnockout = KNOCKOUT_STAGES.has(match.stage);
   const isDraw = home === away;
 
   // Points (réels si terminé, provisoires si en cours) du prono de l'utilisateur.
@@ -191,7 +198,7 @@ export function MatchCardInteractive({
             homeScore: home,
             awayScore: away,
             joker,
-            penaltyPick: isKnockout && isDraw ? penaltyPick : null,
+            penaltyPick: askPenalty && isDraw ? penaltyPick : null,
             comment: comment.trim() || undefined,
           }),
         });
@@ -338,7 +345,7 @@ export function MatchCardInteractive({
           </div>
 
           {/* Vainqueur aux tirs au but — seulement si un prono existe ou que les deux scores ont été saisis */}
-          {isKnockout && isDraw && (!!prediction || bothScores) && (() => {
+          {askPenalty && isDraw && (!!prediction || bothScores) && (() => {
             const drawBonus = 2;
             return (
             <div className="tab-winner-glow rounded-xl p-2.5">

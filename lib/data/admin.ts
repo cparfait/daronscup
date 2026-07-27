@@ -3,6 +3,12 @@
 // ─────────────────────────────────────────────
 
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
+
+/** Id de la saison active, ou undefined si la base n'est pas amorcée. */
+async function activeSeasonId(): Promise<string | undefined> {
+  return (await getActiveSeason())?.id;
+}
 
 export type AdminStats = {
   users: number;
@@ -36,14 +42,18 @@ export async function getAdminStats(): Promise<AdminStats> {
     topScorer: null,
   };
   try {
+    const seasonId = await activeSeasonId();
+    if (!seasonId) return empty;
     const [users, activePlayers, predictions, messages, finishedMatches, totalMatches, top] =
       await Promise.all([
         prisma.user.count(),
-        prisma.user.count({ where: { predictions: { some: {} } } }),
-        prisma.prediction.count(),
-        prisma.message.count(),
-        prisma.result.count({ where: { status: "FINISHED" } }),
-        prisma.match.count(),
+        prisma.user.count({
+          where: { predictions: { some: { match: { seasonId } } } },
+        }),
+        prisma.prediction.count({ where: { match: { seasonId } } }),
+        prisma.message.count({ where: { group: { seasonId } } }),
+        prisma.result.count({ where: { status: "FINISHED", match: { seasonId } } }),
+        prisma.match.count({ where: { seasonId } }),
         prisma.score.findFirst({
           where: { user: { banned: false } },
           orderBy: [{ points: "desc" }, { exactScores: "desc" }],
@@ -70,11 +80,14 @@ export async function getAdminStats(): Promise<AdminStats> {
 /** Liste des joueurs avec leur statut et leurs stats clés. */
 export async function getAdminUsers(): Promise<AdminUser[]> {
   try {
+    const seasonId = await activeSeasonId();
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "asc" },
       include: {
         score: { select: { points: true } },
-        _count: { select: { predictions: true } },
+        _count: {
+          select: { predictions: { where: { match: { seasonId } } } },
+        },
       },
     });
     return users.map((u) => ({
@@ -116,7 +129,10 @@ export type AdminGroup = {
 
 export async function getAdminGroups(): Promise<AdminGroup[]> {
   try {
+    const seasonId = await activeSeasonId();
+    if (!seasonId) return [];
     const groups = await prisma.group.findMany({
+      where: { seasonId },
       orderBy: { createdAt: "asc" },
       include: {
         _count: { select: { members: true } },
@@ -178,7 +194,10 @@ export type AdminPredictionMap = Record<string, AdminPredictionEntry>;
 
 export async function getAdminPredictions(): Promise<AdminPredictionMap> {
   try {
+    const seasonId = await activeSeasonId();
+    if (!seasonId) return {};
     const preds = await prisma.prediction.findMany({
+      where: { match: { seasonId } },
       select: { userId: true, matchId: true, homeScore: true, awayScore: true, joker: true },
     });
     const map: AdminPredictionMap = {};
@@ -220,8 +239,11 @@ export type AdminMatchResult = {
  */
 export async function getMatchesForResultEntry(): Promise<AdminMatchResult[]> {
   try {
+    const seasonId = await activeSeasonId();
+    if (!seasonId) return [];
     const matches = await prisma.match.findMany({
       where: {
+        seasonId,
         OR: [{ kickoffAt: { lte: new Date() } }, { result: { isNot: null } }],
       },
       orderBy: { kickoffAt: "desc" },
@@ -254,7 +276,10 @@ export type AdminMatchBrief = {
 /** TOUS les matchs (passés inclus) — pour l'import de pronos. */
 export async function getAllMatchesBrief(): Promise<AdminMatchBrief[]> {
   try {
+    const seasonId = await activeSeasonId();
+    if (!seasonId) return [];
     const matches = await prisma.match.findMany({
+      where: { seasonId },
       orderBy: { kickoffAt: "asc" },
       include: { result: { select: { status: true } } },
     });

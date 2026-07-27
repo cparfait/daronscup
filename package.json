@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "sync": "tsx --env-file=.env scripts/sync.ts",
     "rescore": "tsx --env-file=.env scripts/rescore.ts",
+    "season:switch": "tsx --env-file=.env scripts/season-switch.ts",
     "flags": "tsx scripts/fetch-flags.ts",
     "odds:check": "tsx --env-file=.env scripts/check-odds.ts",
     "test": "vitest run",

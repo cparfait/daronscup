@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActiveSeason } from "@/lib/season";
 import { sendPushToUsers } from "@/lib/push";
 import { SYSTEM_USER_EMAIL } from "@/lib/match-recap";
 
@@ -37,7 +38,11 @@ export async function POST(req: Request) {
     );
   }
 
+  // Bornage à la saison en cours : une annonce n'a rien à faire dans le tchat
+  // d'un groupe appartenant à une saison archivée.
+  const season = await getActiveSeason();
   const groups = await prisma.group.findMany({
+    where: { seasonId: season?.id ?? undefined },
     select: { id: true, members: { select: { userId: true } } },
   });
   if (groups.length === 0) {

@@ -3,8 +3,12 @@ import { auth } from "@/lib/auth";
 import { syncMatches } from "@/lib/football-data";
 
 /**
- * Synchronise les matchs de la Coupe du Monde depuis football-data.org (gratuit)
- * vers la base. Réservé aux admins. À déclencher manuellement ou via un cron.
+ * Synchronise les matchs de la SAISON ACTIVE depuis football-data.org (gratuit)
+ * vers la base — la compétition et l'édition viennent de `Season`. Réservé aux
+ * admins. À déclencher manuellement ou via un cron.
+ *
+ * Renvoie 0 match si l'édition n'est pas encore publiée par l'API (normal entre
+ * deux saisons, avant le tirage au sort).
  *
  *   POST /api/sync
  */

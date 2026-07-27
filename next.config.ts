@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" }, // avatars Google
       { protocol: "https", hostname: "flagcdn.com" }, // drapeaux de secours
+      { protocol: "https", hostname: "crests.football-data.org" }, // écussons de clubs
       { protocol: "https", hostname: "media.api-sports.io" }, // logos API-Football
     ],
   },

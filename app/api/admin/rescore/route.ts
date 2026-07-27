@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { applyMatchResult } from "@/lib/football-data";
+import { getActiveSeason } from "@/lib/season";
 
 /**
- * Recalcule TOUS les points à partir des résultats déjà enregistrés.
+ * Recalcule les points de la SAISON EN COURS à partir des résultats enregistrés.
  * À utiliser après un changement de barème (ex. règle des nuls) : ré-applique
  * chaque résultat avec `force`, ce qui recalcule intégralement les scores.
  * Idempotent — un second appel ne change rien. Réservé aux admins.
@@ -17,9 +18,14 @@ export async function POST() {
     return NextResponse.json({ error: "Accès réservé aux admins." }, { status: 403 });
   }
 
+  const season = await getActiveSeason();
+  if (!season) {
+    return NextResponse.json({ error: "Aucune saison en cours." }, { status: 400 });
+  }
+
   try {
     const results = await prisma.result.findMany({
-      where: { status: "FINISHED" },
+      where: { status: "FINISHED", match: { seasonId: season.id } },
       select: { matchId: true, homeScore: true, awayScore: true },
     });
 

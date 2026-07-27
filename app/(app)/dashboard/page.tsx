@@ -10,7 +10,7 @@ import { Flag } from "@/components/flag";
 import { Card } from "@/components/ui/card";
 import { LiveRefresher } from "@/components/live-refresher";
 import { HomeOnboarding } from "@/components/home-onboarding";
-import { OddsAnnouncement } from "@/components/odds-announcement";
+import { SeasonAnnouncement } from "@/components/season-announcement";
 import { GroupSwitcher } from "@/components/group-switcher";
 import {
   getLiveLeaderboard,
@@ -27,6 +27,9 @@ import {
   getGroupMemberIds,
   requireActiveGroup,
 } from "@/lib/groups";
+import { getActiveSeason, hasTwoLeggedTies, isKnockoutStage } from "@/lib/season";
+import { SeasonLogo } from "@/components/season-logo";
+import { matchLabel } from "@/lib/matchday";
 import { cn, formatKickoffTime } from "@/lib/utils";
 
 export const metadata = { title: "Hub \u00b7 DaronsFC" };
@@ -48,10 +51,12 @@ export default async function DashboardPage() {
     getGroupMemberIds(activeGroup.id),
   ]);
 
-  const [matches, { entries: leaderboard, hasLive }] = await Promise.all([
+  const [matches, { entries: leaderboard, hasLive }, season] = await Promise.all([
     getMatches(),
     getLiveLeaderboard(memberIds),
+    getActiveSeason(),
   ]);
+  const twoLegged = hasTwoLeggedTies(season);
 
   const stats = await getUserStats(userId);
   const [championPick, championTeams, championOpen] = await Promise.all([
@@ -61,7 +66,7 @@ export default async function DashboardPage() {
   ]);
 
   const knockoutStarted = matches.some(
-    (m) => m.stage !== "GROUP" && +new Date(m.kickoffAt) <= now
+    (m) => isKnockoutStage(m.stage) && +new Date(m.kickoffAt) <= now
   );
 
   const TOP_3 = leaderboard.slice(0, 3).map((u, i) => ({
@@ -130,16 +135,14 @@ export default async function DashboardPage() {
         title={
           <span className="inline-flex items-center gap-2">
             Salut {firstName}
-            <Image
-              src="/world-cup.png"
-              alt="Coupe du Monde"
-              width={30}
-              height={30}
-              className="inline-block drop-shadow-[0_0_6px_var(--color-gold)]/40"
+            <SeasonLogo
+              season={season}
+              size={30}
+              className="inline-block object-contain drop-shadow-[0_0_6px_var(--color-gold)]/40"
             />
           </span>
         }
-        subtitle={"Pr\u00eat \u00e0 pronostiquer ?"}
+        subtitle={season?.name ?? "Pr\u00eat \u00e0 pronostiquer ?"}
         action={
           <Link href="/profile" aria-label="Mon profil" className="block transition-transform hover:scale-105">
             {avatar ? (
@@ -167,7 +170,7 @@ export default async function DashboardPage() {
       </div>
 
       <HomeOnboarding />
-      <OddsAnnouncement />
+      <SeasonAnnouncement />
 
       {knockoutStarted && championOpen && !championPick && (
         <div className="mb-4 rounded-2xl border border-amber-500/40 bg-amber-500/[0.08] p-4">
@@ -175,8 +178,9 @@ export default async function DashboardPage() {
             <span>⚠️</span> Tu n&apos;as pas encore choisi ton champion !
           </p>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Tu as jusqu&apos;à la fin des 16ème de finale pour valider ton choix.
-            Après il sera trop tard — le bonus champion ne te sera pas crédité.
+            C&apos;est jusqu&apos;au coup d&apos;envoi du premier match à
+            élimination directe. Après il sera trop tard — le bonus champion ne
+            te sera pas crédité.
           </p>
         </div>
       )}
@@ -184,7 +188,15 @@ export default async function DashboardPage() {
       <ChampionPickCard
         pick={championPick}
         teams={championTeams}
-        open={championOpen}
+        // Tant que le calendrier n'est pas tiré au sort (entre deux saisons),
+        // il n'y a aucune équipe à désigner : on n'invite pas à parier dans le vide.
+        open={championOpen && championTeams.length > 0}
+        question={
+          season?.kind === "CLUBS"
+            ? "Qui soulèvera la Coupe aux grandes oreilles ?"
+            : "Qui sera champion du monde ?"
+        }
+        bonus={season?.championBonus ?? 50}
       />
 
       <div className="mb-6 grid grid-cols-3 gap-3 animate-stagger stagger-1">
@@ -237,9 +249,12 @@ export default async function DashboardPage() {
               <div className="relative p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--color-muted)]">
-                    {featuredMatch.group
-                      ? "Groupe " + featuredMatch.group
-                      : featuredMatch.stage}
+                    {matchLabel(
+                      featuredMatch.stage,
+                      featuredMatch.group,
+                      featuredMatch.matchday,
+                      twoLegged
+                    )}
                     {!featuredStarted && (
                       <span className="ml-2 text-[var(--color-cream)]/70">
                         {formatKickoffTime(featuredMatch.kickoffAt)}
@@ -396,10 +411,14 @@ export default async function DashboardPage() {
             </span>
             <div className="flex-1">
               <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
-                Classements des poules
+                {season?.kind === "CLUBS"
+                  ? "Classement & tableau"
+                  : "Classements des poules"}
               </p>
               <p className="text-xs text-[var(--color-muted)]">
-                Le tableau des groupes de la Coupe du Monde
+                {season?.kind === "CLUBS"
+                  ? "La phase de ligue et le tableau final"
+                  : "Le tableau des groupes du tournoi"}
               </p>
             </div>
             <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />

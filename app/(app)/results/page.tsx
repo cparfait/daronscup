@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getMatches } from "@/lib/data/queries";
 import type { Match } from "@/lib/data/matches";
 import { jokerBudget } from "@/lib/jokers";
+import { getActiveSeason, hasTwoLeggedTies } from "@/lib/season";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Résultats · DaronsFC" };
@@ -28,7 +29,11 @@ function groupByDayDesc(matches: Match[]) {
 }
 
 export default async function ResultsPage() {
-  const [allMatches, session] = await Promise.all([getMatches(), auth()]);
+  const [allMatches, session, season] = await Promise.all([
+    getMatches(),
+    auth(),
+    getActiveSeason(),
+  ]);
   const now = Date.now();
   // Matchs commencés : en cours (live) ou terminés.
   const matches = allMatches.filter(
@@ -41,10 +46,10 @@ export default async function ResultsPage() {
     string,
     { homeScore: number; awayScore: number; joker: boolean }
   >();
-  if (session?.user?.id) {
+  if (session?.user?.id && season) {
     try {
       const preds = await prisma.prediction.findMany({
-        where: { userId: session.user.id },
+        where: { userId: session.user.id, match: { seasonId: season.id } },
         select: { matchId: true, homeScore: true, awayScore: true, joker: true },
       });
       for (const p of preds) {
@@ -92,7 +97,8 @@ export default async function ResultsPage() {
                   match={m}
                   prediction={predByMatch.get(m.id)}
                   jokersLeft={0}
-                  jokerBudget={jokerBudget(m.stage)}
+                  jokerBudget={jokerBudget(m.stage, season)}
+                  twoLegged={hasTwoLeggedTies(season)}
                 />
               ))}
             </div>

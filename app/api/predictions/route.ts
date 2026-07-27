@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
+import { getActiveSeason, needsPenaltyPick } from "@/lib/season";
 
 const bodySchema = z.object({
   matchId: z.string().min(1),
@@ -19,7 +20,10 @@ const bodySchema = z.object({
  * Sécurité (non contournable côté client) :
  *  - Authentification requise.
  *  - Verrou serveur : rejet si `kickoffAt` (UTC) est déjà passé.
- *  - Joker : budget par phase (4 en poules, 2 en phase finale).
+ *  - Match hors de la saison en cours : rejeté (une archive est en lecture seule).
+ *  - Joker : budget par phase, défini par la saison (cf. lib/jokers.ts).
+ *  - Vainqueur aux tirs au but : ignoré là où il n'a pas de sens (manche d'une
+ *    confrontation aller-retour, où un nul est un résultat normal).
  *  - Horodatage `submittedAt` conservé en base.
  */
 export async function POST(req: Request) {
@@ -40,11 +44,12 @@ export async function POST(req: Request) {
   const { matchId, homeScore, awayScore, joker, penaltyPick, comment } = parsed.data;
   const userId = session.user.id;
 
-  const [match, me] = await Promise.all([
+  const [match, me, season] = await Promise.all([
     prisma.match.findUnique({ where: { id: matchId } }),
     // La session JWT ne reflète pas un bannissement prononcé après le login :
     // on vérifie en base à chaque écriture.
     prisma.user.findUnique({ where: { id: userId }, select: { banned: true } }),
+    getActiveSeason(),
   ]);
   if (!me || me.banned) {
     return NextResponse.json({ error: "Compte suspendu." }, { status: 403 });
@@ -61,16 +66,32 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Règle Joker : budget par phase (4 en poules, 2 en phase finale) ──
+  // ── Saison : on ne prono que la compétition en cours ──
+  if (season && match.seasonId && match.seasonId !== season.id) {
+    return NextResponse.json(
+      { error: "Ce match appartient à une saison terminée." },
+      { status: 403 }
+    );
+  }
+
+  // Vainqueur aux tirs au but : seulement là où un nul doit être départagé.
+  const effectivePenaltyPick = needsPenaltyPick(season, match.stage)
+    ? (penaltyPick ?? null)
+    : null;
+
+  // ── Règle Joker : budget par phase, propre à la saison ──
   if (joker) {
     const phase = jokerPhase(match.stage);
-    const budget = jokerBudget(match.stage);
+    const budget = jokerBudget(match.stage, season);
     const used = await prisma.prediction.count({
       where: {
         userId,
         joker: true,
         matchId: { not: matchId },
-        match: { stage: { in: stagesOfPhase(phase) } },
+        match: {
+          stage: { in: stagesOfPhase(phase) },
+          ...(season ? { seasonId: season.id } : {}),
+        },
       },
     });
     if (used >= budget) {
@@ -86,9 +107,9 @@ export async function POST(req: Request) {
   const prediction = await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    update: { homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment, submittedAt: new Date() } as any,
+    update: { homeScore, awayScore, joker, penaltyPick: effectivePenaltyPick, comment, submittedAt: new Date() } as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    create: { userId, matchId, homeScore, awayScore, joker, penaltyPick: penaltyPick ?? null, comment } as any,
+    create: { userId, matchId, homeScore, awayScore, joker, penaltyPick: effectivePenaltyPick, comment } as any,
   });
 
   return NextResponse.json({ ok: true, prediction }, { status: 200 });

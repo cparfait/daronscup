@@ -2,23 +2,32 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { GoogleSignInButton } from "@/components/auth-buttons";
+import { getActiveSeason } from "@/lib/season";
+import { seasonBudgets, firstPhaseLabel } from "@/lib/jokers";
 
 export default async function LandingPage() {
   const session = await auth();
   if (session?.user) redirect("/dashboard");
 
+  // La compétition en cours pilote les accroches (et les budgets de jokers).
+  const season = await getActiveSeason();
+  const budgets = seasonBudgets(season);
+
   const features = [
     {
       icon: "\u{1F3AF}",
-      title: "Pronostique chaque match de la CdM",
+      title: season
+        ? `Pronostique chaque match de la ${season.shortName}`
+        : "Pronostique chaque match",
       description:
         "Score exact, vainqueur, nombre de buts\u2014choisis ta méthode.",
     },
     {
       icon: "\u{1F0CF}",
       title: "Joue ton Joker \u00D72 strat\u00e9gique",
-      description:
-        "Double tes points : 4 jokers en poules, 2 en phase finale.",
+      description: `Double tes points : ${budgets.group} jokers en ${firstPhaseLabel(
+        season
+      ).toLowerCase()}, ${budgets.knockout} en phase finale.`,
     },
     {
       icon: "\u{1F3C6}",
@@ -221,7 +230,7 @@ export default async function LandingPage() {
               "linear-gradient(90deg, transparent, var(--color-border-subtle), transparent)",
           }}
         />
-        DaronsFC &middot; Coupe du Monde 2026
+        DaronsFC{season ? ` \u00b7 ${season.name}` : ""}
       </footer>
 
       {/* ── Bottom decorative pitch line ── */}

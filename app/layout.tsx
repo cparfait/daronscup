@@ -18,7 +18,7 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "DaronsFC — Pronos entre potes",
   description:
-    "Prouve à tes potes que t'as pas regardé les matchs pour rien. Pronostics de la Coupe du Monde entre amis.",
+    "Prouve à tes potes que t'as pas regardé les matchs pour rien. Pronostics de foot entre amis.",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "DaronsFC" },
   icons: {

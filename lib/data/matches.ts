@@ -8,6 +8,8 @@
 
 export type Stage =
   | "GROUP"
+  | "LEAGUE"
+  | "PLAYOFF"
   | "ROUND_OF_32"
   | "ROUND_OF_16"
   | "QUARTER"
@@ -18,6 +20,11 @@ export type Stage =
 /** Libellés FR des phases du tournoi. */
 export const STAGE_LABELS: Record<Stage, string> = {
   GROUP: "Phase de poules",
+  // Ligue des Champions : 36 clubs, un seul classement, 8 journées.
+  LEAGUE: "Phase de ligue",
+  // Ligue des Champions : barrages entre les 9ᵉ-24ᵉ de la phase de ligue,
+  // qualificatifs pour les 8èmes.
+  PLAYOFF: "Barrage",
   // En français, le tour qui réunit 32 équipes = « 16èmes de finale »,
   // celui à 16 équipes = « 8èmes de finale » (le n° = nb de matchs par camp,
   // pas le nb d'équipes). Il n'existe pas de « 32ème de finale » : la phase à
@@ -27,6 +34,19 @@ export const STAGE_LABELS: Record<Stage, string> = {
   QUARTER: "Quart de finale",
   SEMI: "Demi-finale",
   THIRD_PLACE: "Petite finale",
+  FINAL: "Finale",
+};
+
+/** Libellés courts (onglets, pastilles). */
+export const STAGE_SHORT_LABELS: Record<Stage, string> = {
+  GROUP: "Poules",
+  LEAGUE: "Ligue",
+  PLAYOFF: "Barrages",
+  ROUND_OF_32: "16es",
+  ROUND_OF_16: "8es",
+  QUARTER: "1/4",
+  SEMI: "1/2",
+  THIRD_PLACE: "3e place",
   FINAL: "Finale",
 };
 
@@ -47,6 +67,13 @@ export type Match = {
   /** Cotes 1X2 figées (pour afficher les points par issue) — null si absentes. */
   odds?: { home: number; draw: number; away: number } | null;
 };
+
+/**
+ * Clé de la table de classement unique d'une phase de ligue (Ligue des
+ * Champions : 36 clubs, pas de poules). Les poules de Coupe du Monde utilisent
+ * leur lettre ("A", "B", …) comme clé.
+ */
+export const LEAGUE_TABLE_KEY = "__league__";
 
 /** Ligne de classement d'un groupe. */
 export type StandingTeam = {
