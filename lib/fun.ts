@@ -16,7 +16,7 @@
 import { prisma } from "./prisma";
 import { computePoints } from "./scoring";
 import { matchdayKey, matchdayLabel } from "./matchday";
-import { getActiveSeason } from "./season";
+import { getViewingSeason } from "./season";
 import type { Stage } from "./data/matches";
 
 /** Prono + match, forme minimale utilisée par tous les calculs ci-dessous. */
@@ -100,7 +100,7 @@ export async function getPlayersFlair(
 ): Promise<Map<string, PlayerFlair>> {
   const out = new Map<string, PlayerFlair>();
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season || memberIds.length === 0) return out;
     const preds = await loadSeasonPredictions(season.id, memberIds);
 
@@ -156,7 +156,7 @@ export async function getMatchdayScores(
   twoLegged = false
 ): Promise<MatchdayScore[]> {
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season || memberIds.length === 0) return [];
     const preds = await loadSeasonPredictions(season.id, memberIds);
 
@@ -322,7 +322,7 @@ export async function getRivalry(
 ): Promise<Rivalry> {
   const empty: Rivalry = { mirror: null, shouldHaveCopied: null, nemesis: null };
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season || members.length < 2) return empty;
 
     const nameOf = new Map(members.map((m) => [m.userId, m.name]));

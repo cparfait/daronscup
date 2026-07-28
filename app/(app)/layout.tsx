@@ -7,6 +7,8 @@ import { BottomNav } from "@/components/bottom-nav";
 import { PushAutoEnroll } from "@/components/push-auto-enroll";
 import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { FranceMatchBanner } from "@/components/france-match-banner";
+import { PreviewBanner } from "@/components/preview-banner";
+import { getViewingSeason } from "@/lib/season";
 import { cn } from "@/lib/utils";
 
 export default async function AppLayout({
@@ -27,6 +29,11 @@ export default async function AppLayout({
   // Thème tricolore les jours de match de l'équipe de France.
   const franceMatch = await getFranceMatchToday().catch(() => null);
 
+  // Mode aperçu : un admin consulte une saison de test que personne d'autre ne
+  // voit. On le lui rappelle en permanence (cf. lib/season.ts).
+  const viewing = await getViewingSeason().catch(() => null);
+  const previewSeason = viewing?.adminOnly ? viewing.name : null;
+
   return (
     <div
       className={cn(
@@ -37,6 +44,7 @@ export default async function AppLayout({
       <main className="page-enter flex-1 px-4 pb-24 pt-4">
         <PushAutoEnroll vapidKey={vapidKey} />
         <PresenceHeartbeat />
+        {previewSeason && <PreviewBanner seasonName={previewSeason} />}
         {franceMatch && (
           <div className="mb-4">
             <FranceMatchBanner match={franceMatch} />

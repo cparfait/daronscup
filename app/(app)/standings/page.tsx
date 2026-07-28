@@ -1,14 +1,14 @@
 import { PageHeader } from "@/components/page-header";
 import { StandingsView } from "@/components/standings-view";
 import { getStandings, getMatches } from "@/lib/data/queries";
-import { getActiveSeason, isKnockoutStage, hasTwoLeggedTies } from "@/lib/season";
+import { getViewingSeason, isKnockoutStage, hasTwoLeggedTies } from "@/lib/season";
 import type { Match } from "@/lib/data/matches";
 
 export const metadata = { title: "Classements · DaronsFC" };
 export const dynamic = "force-dynamic";
 
 export default async function StandingsPage() {
-  const season = await getActiveSeason();
+  const season = await getViewingSeason();
   const [groups, allMatches] = await Promise.all([getStandings(), getMatches()]);
 
   // Poules de Coupe du Monde → la liste des 6 matchs sous chaque table.

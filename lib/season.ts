@@ -41,6 +41,8 @@ export type Season = {
   jokerKnockoutBudget: number;
   championBonus: number;
   active: boolean;
+  /** Saison de prévisualisation, visible des seuls admins en mode aperçu. */
+  adminOnly: boolean;
   closedAt: string | null;
 };
 
@@ -61,6 +63,7 @@ type DbSeason = {
   jokerKnockoutBudget: number;
   championBonus: number;
   active: boolean;
+  adminOnly: boolean;
   closedAt: Date | null;
 };
 
@@ -82,6 +85,7 @@ function toSeason(s: DbSeason): Season {
     jokerKnockoutBudget: s.jokerKnockoutBudget,
     championBonus: s.championBonus,
     active: s.active,
+    adminOnly: s.adminOnly,
     closedAt: s.closedAt?.toISOString() ?? null,
   };
 }
@@ -94,7 +98,7 @@ function toSeason(s: DbSeason): Season {
 // écrasée (l'admin peut avoir ajusté les budgets de jokers).
 // ─────────────────────────────────────────────
 
-export type SeasonSeed = Omit<Season, "id" | "active" | "closedAt">;
+export type SeasonSeed = Omit<Season, "id" | "active" | "adminOnly" | "closedAt">;
 
 /** Coupe du Monde 2026 — la saison historique, archivée. */
 export const WC_2026: SeasonSeed = {
@@ -162,6 +166,7 @@ const SELECT = {
   jokerKnockoutBudget: true,
   championBonus: true,
   active: true,
+  adminOnly: true,
   closedAt: true,
 } as const;
 
@@ -173,7 +178,9 @@ const SELECT = {
 export async function getActiveSeason(): Promise<Season | null> {
   try {
     const s = await prisma.season.findFirst({
-      where: { active: true },
+      // `adminOnly: false` est une ceinture de sécurité : une saison d'aperçu ne
+      // doit JAMAIS être la saison active, donc jamais synchronisée ni scorée.
+      where: { active: true, adminOnly: false },
       select: SELECT,
       orderBy: { createdAt: "desc" },
     });
@@ -203,6 +210,60 @@ export async function getSeasons(): Promise<Season[]> {
     return rows.map((s) => toSeason(s as DbSeason));
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────
+// Saison CONSULTÉE (aperçu admin)
+//
+// Deux notions distinctes, à ne pas confondre :
+//   • `getActiveSeason()` — la compétition RÉELLE. C'est elle que synchronisent
+//     l'API et le scoring, et elle seule. Jamais une saison d'aperçu.
+//   • `getViewingSeason()` — ce que l'utilisateur courant VOIT. Identique à la
+//     saison active, sauf pour un admin ayant activé le mode aperçu : il voit
+//     alors la saison `adminOnly` (le jeu de test), sans que personne d'autre
+//     ne s'en aperçoive.
+// ─────────────────────────────────────────────
+
+/** Cookie qui active le mode aperçu pour un admin. */
+export const PREVIEW_COOKIE = "daronsfc_preview";
+
+/** La saison de prévisualisation (jeu de test), ou null s'il n'y en a pas. */
+export async function getPreviewSeason(): Promise<Season | null> {
+  try {
+    const s = await prisma.season.findFirst({
+      where: { adminOnly: true },
+      select: SELECT,
+      orderBy: { createdAt: "desc" },
+    });
+    return s ? toSeason(s as DbSeason) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Saison que l'utilisateur courant doit voir.
+ *
+ * Renvoie la saison d'aperçu UNIQUEMENT si l'appelant est un admin et que le
+ * cookie d'aperçu est posé — le cookie seul ne suffit pas, sinon n'importe qui
+ * pourrait le forger. En dehors d'un contexte de requête (boucle de synchro,
+ * scripts), `cookies()` lève : on retombe alors sur la saison active, ce qui est
+ * exactement le comportement voulu.
+ */
+export async function getViewingSeason(): Promise<Season | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const jar = await cookies();
+    if (jar.get(PREVIEW_COOKIE)?.value !== "1") return getActiveSeason();
+
+    const { auth } = await import("./auth");
+    const session = await auth();
+    if (session?.user?.role !== "ADMIN") return getActiveSeason();
+
+    return (await getPreviewSeason()) ?? (await getActiveSeason());
+  } catch {
+    return getActiveSeason();
   }
 }
 

@@ -771,7 +771,7 @@ function TestDataPanel() {
   const { msg, flash } = useFeedback();
   const [status, setStatus] = useState<{
     present: boolean;
-    active: boolean;
+    preview: boolean;
     matches: number;
     players: number;
   } | null>(null);
@@ -789,23 +789,33 @@ function TestDataPanel() {
     refresh();
   }, []);
 
-  const run = (action: "seed" | "purge", confirmText: string) =>
+  const call = (body: Record<string, unknown>, confirmText: string | null) =>
     start(async () => {
-      if (!confirm(confirmText)) return;
+      if (confirmText && !confirm(confirmText)) return;
       try {
         const res = await fetch("/api/admin/test-data", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Erreur");
-        flash(
-          action === "seed"
-            ? `🧪 Jeu injecté : ${data.matches} matchs, ${data.players} joueurs, ${data.predictions} pronos. La saison de test est active.`
-            : `🧹 Purgé : ${data.matches} matchs, ${data.predictions} pronos, ${data.players} comptes. Saison restaurée : ${data.restoredSeason ?? "—"}.`,
-          true
-        );
+        if (body.action === "seed") {
+          flash(
+            `🧪 Jeu injecté : ${data.matches} matchs, ${data.players} joueurs, ${data.predictions} pronos. Tu es passé en mode aperçu.`,
+            true
+          );
+        } else if (body.action === "purge") {
+          flash(
+            `🧹 Purgé : ${data.matches} matchs, ${data.predictions} pronos, ${data.players} comptes fictifs. Saison réelle : ${data.activeSeason ?? "—"}.`,
+            true
+          );
+        } else {
+          flash(
+            data.preview ? "👁️ Mode aperçu activé." : "Retour aux données réelles.",
+            true
+          );
+        }
         await refresh();
         router.refresh();
       } catch (e) {
@@ -820,19 +830,30 @@ function TestDataPanel() {
         <p className="mt-1 mb-3 text-sm text-[var(--color-muted)]">
           Remplit l&apos;app de données fictives pour tout essayer : classement,
           duels, récaps, tableau final, périmètre des pronos. Rangé dans une{" "}
-          <strong className="text-[var(--color-cream)]">saison dédiée</strong> et
-          sur des comptes réservés — la Coupe du Monde et la saison en cours ne
-          sont jamais touchées.
+          <strong className="text-[var(--color-cream)]">
+            saison d&apos;aperçu
+          </strong>{" "}
+          que <strong className="text-[var(--color-cream)]">toi seul vois</strong> :
+          elle n&apos;est jamais la saison active, donc invisible des autres
+          joueurs, de la synchro et du scoring. La Coupe du Monde et la saison en
+          cours ne sont jamais touchées.
         </p>
 
         <div className="mb-3 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-2)] p-3 text-sm">
           {status === null ? (
             <p className="text-[var(--color-muted)]">Chargement…</p>
           ) : status.present ? (
-            <p className="text-[var(--color-cream)]">
-              Jeu présent : {status.matches} matchs, {status.players} joueurs
-              fictifs{status.active ? " · saison de test ACTIVE" : ""}
-            </p>
+            <>
+              <p className="text-[var(--color-cream)]">
+                Jeu présent : {status.matches} matchs, {status.players} joueurs
+                fictifs
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                {status.preview
+                  ? "👁️ Tu es en mode aperçu : l'app t'affiche le jeu de test."
+                  : "Mode aperçu désactivé : tu vois les données réelles."}
+              </p>
+            </>
           ) : (
             <p className="text-[var(--color-muted)]">Aucun jeu de test en base.</p>
           )}
@@ -843,9 +864,9 @@ function TestDataPanel() {
             size="sm"
             disabled={pending}
             onClick={() =>
-              run(
-                "seed",
-                "Injecter le jeu de test ?\n\nUne saison « TEST-DATA » est créée avec des matchs, joueurs et pronos fictifs, et devient la saison active.\n\nTes données réelles (Coupe du Monde archivée, saison en cours) ne sont pas touchées. Un jeu déjà présent est remplacé."
+              call(
+                { action: "seed" },
+                "Injecter le jeu de test ?\n\nUne saison d'aperçu est créée avec des matchs, joueurs et pronos fictifs, et tu passes en mode aperçu.\n\nPersonne d'autre ne la verra : elle n'est jamais la saison active. Tes données réelles ne sont pas touchées. Un jeu déjà présent est remplacé."
               )
             }
           >
@@ -854,20 +875,31 @@ function TestDataPanel() {
           </Button>
 
           {status?.present && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                run(
-                  "purge",
-                  "Purger le jeu de test ?\n\nLa saison « TEST-DATA », ses matchs, pronos et comptes fictifs sont supprimés, et la saison réelle redevient active.\n\nAucune donnée réelle n'est supprimée."
-                )
-              }
-            >
-              {pending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-              Purger
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() => call({ action: "preview", on: !status.preview }, null)}
+              >
+                {pending ? <Loader2 className="animate-spin" /> : <PlayCircle />}
+                {status.preview ? "Quitter l'aperçu" : "Passer en aperçu"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  call(
+                    { action: "purge" },
+                    "Purger le jeu de test ?\n\nLa saison d'aperçu, ses matchs, pronos et comptes fictifs sont supprimés.\n\nAucune donnée réelle n'est supprimée."
+                  )
+                }
+              >
+                {pending ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                Purger
+              </Button>
+            </>
           )}
         </div>
 

@@ -16,7 +16,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 
 export const GROUP_COOKIE = "daronsfc_group";
 
@@ -44,7 +44,7 @@ export function newGroupToken(): string {
  */
 export async function getMyGroups(userId: string): Promise<GroupBrief[]> {
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season) return [];
     const memberships = await prisma.groupMember.findMany({
       where: { userId, group: { seasonId: season.id } },
@@ -78,7 +78,7 @@ export async function getSwitchableGroups(
   const mine = await getMyGroups(userId);
   if (!isAdmin) return mine;
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season) return mine;
     const all = await prisma.group.findMany({
       where: { seasonId: season.id },
@@ -123,7 +123,7 @@ export async function getActiveGroup(userId: string): Promise<ActiveGroup | null
       select: { role: true },
     });
     if (me?.role === "ADMIN") {
-      const season = await getActiveSeason();
+      const season = await getViewingSeason();
       const g = await prisma.group.findFirst({
         // Borné à la saison active : un cookie pointant vers un groupe d'une
         // saison archivée ne doit pas ramener l'admin dans l'ancien tournoi.
@@ -221,7 +221,7 @@ export async function getUserPublicGroups(
   userId: string
 ): Promise<{ id: string; name: string }[]> {
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season) return [];
     const memberships = await prisma.groupMember.findMany({
       where: { userId, group: { seasonId: season.id } },

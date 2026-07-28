@@ -98,14 +98,27 @@ La console admin (panneau **🧪 Jeu de test**) remplit l'app de données fictiv
 
 L'isolation repose sur deux clés, pas sur une convention de nommage fragile :
 
-- tout le contenu vit dans une **saison dédiée** (`TEST-DATA`) ;
+- tout le contenu vit dans une **saison dédiée** (`TEST-DATA`), marquée `adminOnly` ;
 - les joueurs fictifs portent le domaine réservé `@test.daronsfc.local`.
 
-La purge ne cible que ces deux choses, donc **les données réelles ne sont jamais référencées** — la Coupe du Monde archivée (matchs, pronos, groupes, palmarès) et la saison en cours sont hors de portée. La saison réelle est réactivée automatiquement, et les agrégats (points, badges) recalculés depuis ses vrais résultats.
+La purge ne cible que ces deux choses, donc **les données réelles ne sont jamais référencées** — la Coupe du Monde archivée (matchs, pronos, groupes, palmarès) et la saison en cours sont hors de portée.
+
+### Visible des seuls admins
+
+La saison de test n'est **jamais la saison active**. L'app distingue deux notions :
+
+| | Rôle | Qui la voit |
+|---|---|---|
+| `getActiveSeason()` | la compétition **réelle** — c'est elle que synchronise l'API et que score le moteur de points | tout le monde |
+| `getViewingSeason()` | ce que l'utilisateur courant **affiche** | identique, sauf pour un admin en mode aperçu |
+
+Un admin bascule en **mode aperçu** (cookie posé par la console admin) et voit alors le jeu de test, avec un bandeau permanent le lui rappelant. Les autres joueurs, la synchro, le scoring et les notifications continuent d'ignorer son existence. Le cookie seul ne suffit pas : le rôle est revérifié à chaque requête, donc il ne sert à rien de le forger.
+
+Corollaire utile : les joueurs fictifs sont les seuls à recevoir des points. Aucun `Score` réel n'est touché, il n'y a donc **rien à recalculer à la purge**. L'admin peut quand même pronostiquer sur les matchs à venir du jeu — ils n'auront jamais de résultat, donc aucun impact sur son classement réel.
 
 Le jeu contient 21 matchs sur 12 clubs (avec leurs vrais écussons) : 2 journées de phase de ligue jouées, une à venir, des barrages en **aller-retour** dont un départagé aux tirs au but, une finale, des cotes figées, 4 joueurs aux profils contrastés (du crack au désastre), des pronostics, des réactions, un enjeu de saison et les récaps automatiques dans le tchat.
 
-> ⚠️ La saison de test devient **active** à l'injection : l'app affiche donc les données fictives jusqu'à la purge. La compétition est volontairement inconnue de l'API (`TEST`), pour qu'une synchro ne puisse jamais écraser ces matchs fabriqués.
+> ℹ️ La compétition du jeu est volontairement inconnue de l'API (`TEST`) : la synchro reçoit un 404, traité comme « calendrier pas encore publié », et ne peut donc jamais écraser ces matchs fabriqués.
 
 ## 🧮 Le barème (façon MPP, indexé sur les cotes)
 

@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { getDuels, getRivalry, getPlayersFlair } from "@/lib/fun";
 import { getGroupMemberIds, requireActiveGroup } from "@/lib/groups";
-import { getActiveSeason, hasTwoLeggedTies } from "@/lib/season";
+import { getViewingSeason, hasTwoLeggedTies } from "@/lib/season";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Duels · DaronsFC" };
@@ -25,7 +25,7 @@ export default async function RivalsPage() {
   const activeGroup = await requireActiveGroup(userId);
   const [memberIds, season] = await Promise.all([
     getGroupMemberIds(activeGroup.id),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
 
   const users = await prisma.user

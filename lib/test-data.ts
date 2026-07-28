@@ -15,6 +15,7 @@
 
 import { prisma } from "./prisma";
 import { newGroupToken } from "./groups";
+import { PREVIEW_COOKIE } from "./season";
 import type { Stage } from "./data/matches";
 
 /** Code de la saison de test — la clé de voûte de l'isolation. */
@@ -144,12 +145,18 @@ export type TestDataSummary = {
 };
 
 /**
- * Injecte le jeu de test et rend la saison de test ACTIVE, pour que l'app
- * l'affiche immédiatement. Idempotent : une injection sur un jeu déjà présent
+ * Injecte le jeu de test comme saison de PRÉVISUALISATION (`adminOnly`) : elle
+ * n'est jamais `active`, donc ni la synchro, ni le scoring, ni les autres
+ * joueurs ne la voient. Seul un admin ayant activé le mode aperçu l'affiche
+ * (cf. `getViewingSeason`). Idempotent : une injection sur un jeu déjà présent
  * le purge d'abord, afin de repartir d'un état connu.
  *
  * `adminId` est ajouté au groupe de test (sinon la console admin le verrait en
- * lecture seule et on ne pourrait pas éprouver pronos et réactions).
+ * lecture seule et on ne pourrait pas éprouver pronos et réactions). En
+ * revanche il ne reçoit AUCUN pronostic fictif : ses points réels resteraient
+ * pollués tant que le jeu est en place, et ses coéquipiers du vrai groupe le
+ * verraient. Les matchs à venir du jeu lui permettent de pronostiquer pour de
+ * vrai sans conséquence, puisqu'ils n'auront jamais de résultat.
  */
 export async function seedTestData(adminId: string): Promise<TestDataSummary> {
   await purgeTestData();
@@ -173,7 +180,9 @@ export async function seedTestData(adminId: string): Promise<TestDataSummary> {
       jokerKnockoutBudget: 4,
       championBonus: 50,
       stake: "Le dernier paie la tournée 🍻 (données de test)",
+      // Jamais active : c'est une saison d'aperçu, réservée aux admins.
       active: false,
+      adminOnly: true,
     },
   });
 
@@ -329,15 +338,6 @@ export async function seedTestData(adminId: string): Promise<TestDataSummary> {
     data: { notified: true },
   });
 
-  // ── Bascule : la saison de test devient active ──
-  await prisma.$transaction([
-    prisma.season.updateMany({
-      where: { active: true },
-      data: { active: false },
-    }),
-    prisma.season.update({ where: { id: season.id }, data: { active: true } }),
-  ]);
-
   return {
     seasonCode: season.code,
     matches: matchIds.length,
@@ -352,18 +352,17 @@ export type PurgeSummary = {
   matches: number;
   predictions: number;
   players: number;
-  restoredSeason: string | null;
+  /** Saison réelle active (inchangée par le jeu de test). */
+  activeSeason: string | null;
 };
 
 /**
- * Purge le jeu de test et réactive la saison réelle.
+ * Purge le jeu de test.
  *
  * Ne touche QUE la saison `TEST-DATA` et les comptes en `@test.daronsfc.local` :
  * la Coupe du Monde archivée et la saison en cours sont hors de portée, y
- * compris leurs matchs, pronostics, groupes et palmarès.
- *
- * La saison réactivée est la plus récente saison NON clôturée hors jeu de test
- * (donc la compétition en cours) ; à défaut, la plus récente tout court.
+ * compris leurs matchs, pronostics, groupes et palmarès. La saison réelle
+ * n'ayant jamais été désactivée, il n'y a rien à restaurer.
  */
 export async function purgeTestData(): Promise<PurgeSummary> {
   const season = await prisma.season.findUnique({
@@ -400,77 +399,53 @@ export async function purgeTestData(): Promise<PurgeSummary> {
     where: { email: { endsWith: TEST_EMAIL_DOMAIN } },
   });
 
-  // ── Retour à la saison réelle ──
-  let restoredSeason: string | null = null;
-  const real =
-    (await prisma.season.findFirst({
-      where: { closedAt: null, code: { not: TEST_SEASON_CODE } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, code: true },
-    })) ??
-    (await prisma.season.findFirst({
-      where: { code: { not: TEST_SEASON_CODE } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, code: true },
-    }));
-
-  if (real) {
-    await prisma.$transaction([
-      prisma.season.updateMany({ where: { active: true }, data: { active: false } }),
-      prisma.season.update({ where: { id: real.id }, data: { active: true } }),
-    ]);
-    restoredSeason = real.code;
-
-    // Les points de l'admin ont été crédités par le jeu de test : on remet les
-    // agrégats à zéro puis on recalcule depuis les résultats RÉELS de la saison
-    // restaurée (aucun résultat → tout le monde à zéro, ce qui est correct).
-    await prisma.$transaction([
-      prisma.score.updateMany({
-        data: { points: 0, exactScores: 0, correctResults: 0, previousRank: null },
-      }),
-      prisma.userBadge.deleteMany(),
-    ]);
-    const { applyMatchResult } = await import("./football-data");
-    const results = await prisma.result.findMany({
-      where: { status: "FINISHED", match: { seasonId: real.id } },
-      select: { matchId: true, homeScore: true, awayScore: true },
-    });
-    for (const r of results) {
-      await applyMatchResult(r.matchId, r.homeScore, r.awayScore, { force: true });
-    }
-  }
+  // La saison réelle est restée active tout du long : rien à restaurer, et les
+  // agrégats des vrais joueurs n'ont jamais été touchés.
+  const real = await prisma.season.findFirst({
+    where: { active: true },
+    select: { code: true },
+  });
 
   return {
     found: !!season,
     matches,
     predictions,
     players: u.count,
-    restoredSeason,
+    activeSeason: real?.code ?? null,
   };
 }
 
 /** État du jeu de test, pour l'affichage dans la console admin. */
 export async function getTestDataStatus(): Promise<{
   present: boolean;
-  active: boolean;
+  /** Le mode aperçu est-il activé pour l'admin qui consulte ? */
+  preview: boolean;
   matches: number;
   players: number;
 }> {
+  const empty = { present: false, preview: false, matches: 0, players: 0 };
   try {
     const season = await prisma.season.findUnique({
       where: { code: TEST_SEASON_CODE },
-      select: { id: true, active: true, _count: { select: { matches: true } } },
+      select: { id: true, _count: { select: { matches: true } } },
     });
     const players = await prisma.user.count({
       where: { email: { endsWith: TEST_EMAIL_DOMAIN } },
     });
+    let preview = false;
+    try {
+      const { cookies } = await import("next/headers");
+      preview = (await cookies()).get(PREVIEW_COOKIE)?.value === "1";
+    } catch {
+      // Hors contexte de requête : pas de notion d'aperçu.
+    }
     return {
       present: !!season,
-      active: season?.active ?? false,
+      preview,
       matches: season?._count.matches ?? 0,
       players,
     };
   } catch {
-    return { present: false, active: false, matches: 0, players: 0 };
+    return empty;
   }
 }

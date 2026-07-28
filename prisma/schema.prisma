@@ -57,6 +57,11 @@ model Season {
   championBonus       Int @default(50)
 
   active    Boolean   @default(false) // une seule saison active à la fois
+  // Saison de PRÉVISUALISATION, visible des seuls admins ayant activé le mode
+  // aperçu (cf. lib/season.ts → `getViewingSeason`). Elle n'est jamais `active` :
+  // la synchro, le scoring et les joueurs normaux continuent d'ignorer son
+  // existence. Sert au jeu de test (cf. lib/test-data.ts).
+  adminOnly Boolean   @default(false)
   closedAt  DateTime?
   createdAt DateTime  @default(now())
 

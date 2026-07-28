@@ -5,7 +5,7 @@ import { Flag } from "@/components/flag";
 import { auth } from "@/lib/auth";
 import { getUserPredictions, getUserStats } from "@/lib/data/queries";
 import { computePoints } from "@/lib/scoring";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 import { seasonBudgets, firstPhaseLabel } from "@/lib/jokers";
 
 export const metadata = { title: "Barème · DaronsFC" };
@@ -51,7 +51,7 @@ export default async function ScoringPage() {
   const userId = session?.user?.id;
 
   // Les budgets de jokers et le nom du premier tour dépendent de la saison.
-  const season = await getActiveSeason();
+  const season = await getViewingSeason();
   const budgets = seasonBudgets(season);
   const isClubs = season?.kind === "CLUBS";
 

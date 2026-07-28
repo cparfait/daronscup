@@ -23,7 +23,7 @@ import type {
   JokerUsage,
 } from "@/lib/data/matches";
 import { computePoints } from "@/lib/scoring";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 import { firstPhaseLabel } from "@/lib/jokers";
 import {
   Trophy,
@@ -48,7 +48,7 @@ export default async function ProfilePage() {
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
   // Saison en cours : le libellé du premier tour en dépend (poules / ligue).
-  const season = await getActiveSeason();
+  const season = await getViewingSeason();
 
   // Club de cœur (décoratif) + catalogue des équipes de la compétition.
   const [favoriteTeams, me] = await Promise.all([

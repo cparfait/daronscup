@@ -8,7 +8,7 @@ import { getMatches } from "@/lib/data/queries";
 import type { Match } from "@/lib/data/matches";
 import { jokerPhase, jokerBudget, seasonBudgets } from "@/lib/jokers";
 import {
-  getActiveSeason,
+  getViewingSeason,
   hasTwoLeggedTies,
   isKnockoutStage,
   needsPenaltyPick,
@@ -38,7 +38,7 @@ export default async function MatchesPage() {
   const [allMatches, session, season] = await Promise.all([
     getMatches(),
     auth(),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
   // Onglet « Matchs » = uniquement les matchs à venir (pas encore commencés)…
   const now = Date.now();

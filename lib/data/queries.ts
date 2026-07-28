@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { computePoints } from "@/lib/scoring";
 import { compareRanked } from "@/lib/ranking";
 import { jokerPhase, seasonBudgets } from "@/lib/jokers";
-import { getActiveSeason, KNOCKOUT_STAGES } from "@/lib/season";
+import { getViewingSeason, KNOCKOUT_STAGES } from "@/lib/season";
 import { getPlayersFlair } from "@/lib/fun";
 import { getDefendingChampions } from "@/lib/season-archive";
 import type {
@@ -37,7 +37,9 @@ import { LEAGUE_TABLE_KEY } from "./matches";
  */
 async function resolveSeasonId(seasonId?: string): Promise<string | undefined> {
   if (seasonId) return seasonId;
-  return (await getActiveSeason())?.id;
+  // Saison CONSULTÉE, pas forcément l'active : un admin en mode aperçu voit le
+  // jeu de test (cf. lib/season.ts). Point de bascule unique pour toute l'app.
+  return (await getViewingSeason())?.id;
 }
 
 type DbMatch = {
@@ -130,7 +132,7 @@ function parisDateStr(d: Date): string {
  */
 export async function getFranceMatchToday(): Promise<Match | null> {
   try {
-    const season = await getActiveSeason();
+    const season = await getViewingSeason();
     if (!season || season.kind !== "NATIONS") return null;
     const now = Date.now();
     const rows = await prisma.match.findMany({
@@ -822,7 +824,7 @@ export async function getMyPrediction(
 
 /** Jokers utilisés par phase pour un joueur, sur la saison en cours. */
 export async function getJokerUsage(userId: string): Promise<JokerUsage> {
-  const season = await getActiveSeason().catch(() => null);
+  const season = await getViewingSeason().catch(() => null);
   const budget = seasonBudgets(season);
   const empty: JokerUsage = {
     group: { used: 0, budget: budget.group },

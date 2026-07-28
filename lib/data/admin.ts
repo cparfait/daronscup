@@ -3,11 +3,11 @@
 // ─────────────────────────────────────────────
 
 import { prisma } from "@/lib/prisma";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 
 /** Id de la saison active, ou undefined si la base n'est pas amorcée. */
 async function activeSeasonId(): Promise<string | undefined> {
-  return (await getActiveSeason())?.id;
+  return (await getViewingSeason())?.id;
 }
 
 export type AdminStats = {

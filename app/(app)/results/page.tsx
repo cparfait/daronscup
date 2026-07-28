@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getMatches } from "@/lib/data/queries";
 import type { Match } from "@/lib/data/matches";
 import { jokerBudget } from "@/lib/jokers";
-import { getActiveSeason, hasTwoLeggedTies } from "@/lib/season";
+import { getViewingSeason, hasTwoLeggedTies } from "@/lib/season";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Résultats · DaronsFC" };
@@ -32,7 +32,7 @@ export default async function ResultsPage() {
   const [allMatches, session, season] = await Promise.all([
     getMatches(),
     auth(),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
   const now = Date.now();
   // Matchs commencés : en cours (live) ou terminés.

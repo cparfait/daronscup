@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { SeasonLogo } from "@/components/season-logo";
-import { getActiveSeason, hasTwoLeggedTies } from "@/lib/season";
+import { getViewingSeason, hasTwoLeggedTies } from "@/lib/season";
 import { seasonBudgets, firstPhaseLabel } from "@/lib/jokers";
 
 export const metadata = { title: "Règles du jeu · DaronsFC" };
@@ -23,7 +23,7 @@ export default async function ReglesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const season = await getActiveSeason();
+  const season = await getViewingSeason();
   const budgets = seasonBudgets(season);
   const twoLegged = hasTwoLeggedTies(season);
   const isClubs = season?.kind === "CLUBS";

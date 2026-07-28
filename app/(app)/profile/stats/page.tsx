@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Flag } from "@/components/flag";
 import { getPersonalStats } from "@/lib/data/queries";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 
 export const metadata = { title: "Mes stats · DaronsFC" };
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function StatsPage() {
   const userId = session?.user?.id;
   const [stats, season] = await Promise.all([
     userId ? getPersonalStats(userId) : null,
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
 
   const STATS = stats

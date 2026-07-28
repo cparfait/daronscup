@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
-import { getActiveSeason, needsPenaltyPick } from "@/lib/season";
+import { getViewingSeason, needsPenaltyPick } from "@/lib/season";
 import { getBettingScope, isBettableMatch } from "@/lib/betting";
 
 const bodySchema = z.object({
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // La session JWT ne reflète pas un bannissement prononcé après le login :
     // on vérifie en base à chaque écriture.
     prisma.user.findUnique({ where: { id: userId }, select: { banned: true } }),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
   if (!me || me.banned) {
     return NextResponse.json({ error: "Compte suspendu." }, { status: 403 });

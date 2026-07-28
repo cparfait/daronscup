@@ -13,7 +13,7 @@ import { getActiveGroup, getGroupMemberIds } from "@/lib/groups";
 import { type MatchPrediction } from "@/lib/data/matches";
 import { jokerPhase, stagesOfPhase, jokerBudget } from "@/lib/jokers";
 import {
-  getActiveSeason,
+  getViewingSeason,
   hasTwoLeggedTies,
   needsPenaltyPick,
 } from "@/lib/season";
@@ -32,7 +32,7 @@ export default async function MatchDetailPage({
   const [match, session, season] = await Promise.all([
     getMatch(id),
     auth(),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
   if (!match) notFound();
 

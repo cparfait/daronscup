@@ -27,7 +27,7 @@ import {
   getGroupMemberIds,
   requireActiveGroup,
 } from "@/lib/groups";
-import { getActiveSeason, hasTwoLeggedTies, isKnockoutStage } from "@/lib/season";
+import { getViewingSeason, hasTwoLeggedTies, isKnockoutStage } from "@/lib/season";
 import { SeasonLogo } from "@/components/season-logo";
 import { matchLabel } from "@/lib/matchday";
 import { buildBettingScope, isBettableMatch } from "@/lib/betting";
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   const [matches, { entries: leaderboard, hasLive }, season] = await Promise.all([
     getMatches(),
     getLiveLeaderboard(memberIds),
-    getActiveSeason(),
+    getViewingSeason(),
   ]);
   const twoLegged = hasTwoLeggedTies(season);
 

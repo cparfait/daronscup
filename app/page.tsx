@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { GoogleSignInButton } from "@/components/auth-buttons";
-import { getActiveSeason } from "@/lib/season";
+import { getViewingSeason } from "@/lib/season";
 import { seasonBudgets, firstPhaseLabel } from "@/lib/jokers";
 
 export default async function LandingPage() {
@@ -10,7 +10,7 @@ export default async function LandingPage() {
   if (session?.user) redirect("/dashboard");
 
   // La compétition en cours pilote les accroches (et les budgets de jokers).
-  const season = await getActiveSeason();
+  const season = await getViewingSeason();
   const budgets = seasonBudgets(season);
 
   const features = [
