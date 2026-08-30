@@ -172,13 +172,18 @@ npm install
 # 2. Configurer l'environnement
 cp .env.example .env.local   # puis remplis les variables (voir ci-dessous)
 
-# 3. Préparer la base
+# 3. Démarrer Postgres (voir note ci-dessous)
+docker compose -f docker-compose.dev.yml up -d
+
+# 4. Préparer la base
 npm run db:push              # applique le schéma Prisma
 npm run db:seed              # (optionnel) catalogue de badges
 
-# 4. Lancer en dev
+# 5. Lancer en dev
 npm run dev                  # http://localhost:3000
 ```
+
+> 🐘 **La base de dev est un fichier à part.** `docker-compose.dev.yml` publie Postgres sur **127.0.0.1:5434** (et non 5432, pour cohabiter avec d'autres projets sur le même poste). Le service `db` de `docker-compose.portainer.yml` n'expose volontairement aucun port — c'est le bon comportement en prod, mais il est injoignable depuis un `npm run dev` qui tourne hors Docker. `DATABASE_URL` correspondant : `postgresql://daronsfc:daronsfc@localhost:5434/daronsfc?schema=public`
 
 ### Variables d'environnement clés
 
@@ -207,8 +212,11 @@ npm run dev                  # http://localhost:3000
 | `npm run sync` | Sync manuelle des matchs |
 | `npm run rescore` | Recalcule les points de la saison en cours (après changement de barème) |
 | `npm run season:switch` | Archive la saison active et ouvre la suivante |
+| `npm run admin:promote` | Liste les comptes et leur rôle ; `-- <email>` promeut, `-- --bootstrap` (re)crée le compte `ADMIN_EMAIL` |
 | `npm run flags` | Pré-télécharge les drapeaux dans `public/flags/` |
 | `npm test` | Lance les tests unitaires (Vitest) |
+
+> 🔑 **Plus personne n'est admin ?** L'app se verrouille toute seule : promouvoir quelqu'un via `POST /api/admin/users` exige déjà d'être admin. `npm run admin:promote -- <email>` est la porte de secours — il ne passe pas par l'auth HTTP, juste par `DATABASE_URL`. Le rôle étant relu en base toutes les minutes (`lib/auth.ts`), la console réapparaît sans reconnexion.
 
 ## ⚙️ Sous le capot
 

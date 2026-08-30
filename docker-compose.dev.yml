@@ -1,0 +1,44 @@
+# Base Postgres pour le DÉVELOPPEMENT LOCAL uniquement.
+#
+#   docker compose -f docker-compose.dev.yml up -d      # démarrer
+#   docker compose -f docker-compose.dev.yml logs -f db  # suivre
+#   docker compose -f docker-compose.dev.yml down        # arrêter (garde les données)
+#   docker compose -f docker-compose.dev.yml down -v     # arrêter ET tout effacer
+#
+# Pourquoi un fichier à part : le service `db` de docker-compose.portainer.yml
+# n'expose AUCUN port sur l'hôte — voulu en prod (la base ne sort pas du réseau
+# Docker), mais inutilisable en dev, où Next.js tourne sur la machine et doit
+# joindre `localhost`.
+#
+# Tout est nommé/porté distinctement pour cohabiter avec d'autres projets sur
+# le même poste : port 5434 (et non 5432), conteneur `daronsfc_db_dev`, volume
+# `daronsfc_pgdata_dev`. Rien ici ne doit servir en production.
+#
+# Le `DATABASE_URL` correspondant, à mettre dans .env :
+#   postgresql://daronsfc:daronsfc@localhost:5434/daronsfc?schema=public
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: daronsfc_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-daronsfc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-daronsfc}
+      POSTGRES_DB: ${POSTGRES_DB:-daronsfc}
+    ports:
+      # Publié sur 5434 pour ne pas percuter un Postgres déjà installé (5432).
+      # Lié à 127.0.0.1 : la base de dev n'est pas exposée sur le réseau.
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-daronsfc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata_dev:
+    name: daronsfc_pgdata_dev

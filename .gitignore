@@ -32,3 +32,6 @@ yarn-error.log*
 
 # prisma
 /lib/generated/prisma
+
+# grappe Postgres locale (dev sans Docker)
+/.pgdata

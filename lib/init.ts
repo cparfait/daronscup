@@ -162,31 +162,65 @@ async function bootstrapSeasons(): Promise<void> {
   }
 }
 
+/** Amorçage réussi de bout en bout : plus rien à faire pour ce process. */
 let done = false;
+/** Anti-rejeu après un échec (epoch ms) — voir `maybeInit`. */
+let retryAfter = 0;
+/** Passe en cours, pour coalescer les appels concurrents. */
+let inFlight: Promise<void> | null = null;
 
+/** Intervalle minimal entre deux tentatives quand l'amorçage a échoué. */
+const RETRY_INTERVAL_MS = 30_000;
+
+/**
+ * Amorçage : badges, saisons, compte admin, bot système. Idempotent.
+ *
+ * Le verrou `done` ne se pose qu'en cas de succès COMPLET. Si la base n'est pas
+ * joignable au moment de la passe — l'instrumentation appelle à T+8 s, un
+ * conteneur Postgres peut n'être pas encore prêt — chaque étape échoue en
+ * silence et il faut pouvoir réessayer : sinon le compte admin n'est jamais
+ * créé et la console d'administration reste inaccessible jusqu'au prochain
+ * redémarrage. Les tentatives sont espacées de `RETRY_INTERVAL_MS` pour ne pas
+ * marteler une base en carafe à chaque page chargée, et coalescées entre elles.
+ */
 export async function maybeInit(): Promise<void> {
   if (done) return;
-  done = true;
-  try {
+  if (inFlight) return inFlight;
+  if (Date.now() < retryAfter) return;
+
+  inFlight = runInit().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function runInit(): Promise<void> {
+  let ok = true;
+
+  /** Exécute une étape ; une erreur est journalisée et invalide la passe. */
+  const step = async (label: string, fn: () => Promise<void>): Promise<void> => {
+    try {
+      await fn();
+    } catch (e) {
+      ok = false;
+      console.error(`[init] échec ${label}:`, e instanceof Error ? e.message : e);
+    }
+  };
+
+  await step("seed badges", async () => {
     for (const badge of BADGES) {
       await prisma.badge.upsert({ where: { key: badge.key }, update: badge, create: badge });
     }
-  } catch (e) {
-    console.error("[init] échec seed badges:", e instanceof Error ? e.message : e);
-  }
-  try {
-    await bootstrapSeasons();
-  } catch (e) {
-    console.error("[init] échec bootstrap saisons:", e instanceof Error ? e.message : e);
-  }
-  try {
-    await bootstrapAdmin();
-  } catch (e) {
-    console.error("[init] échec bootstrap admin:", e instanceof Error ? e.message : e);
-  }
-  try {
-    await bootstrapSystemUser();
-  } catch (e) {
-    console.error("[init] échec bootstrap bot système:", e instanceof Error ? e.message : e);
+  });
+  await step("bootstrap saisons", bootstrapSeasons);
+  await step("bootstrap admin", bootstrapAdmin);
+  await step("bootstrap bot système", bootstrapSystemUser);
+
+  done = ok;
+  if (!ok) {
+    retryAfter = Date.now() + RETRY_INTERVAL_MS;
+    console.warn(
+      `[init] amorçage incomplet — nouvelle tentative dans ${RETRY_INTERVAL_MS / 1000} s.`
+    );
   }
 }
