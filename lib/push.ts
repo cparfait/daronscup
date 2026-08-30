@@ -51,9 +51,15 @@ async function deliver(subs: SubRow[], payload: PushPayload): Promise<void> {
           data
         );
       } catch (err: unknown) {
-        // 404/410 : abonnement expiré → on le purge.
+        // Abonnement définitivement inutilisable → on le purge.
+        //   404/410 : l'abonnement a expiré côté navigateur.
+        //   403     : la clé VAPID ne correspond plus à celle qui a servi à
+        //             souscrire (paire régénérée). Sans ce cas, une rotation de
+        //             clés laisse en base des lignes mortes retentées à chaque
+        //             notification : le ré-abonnement produit un NOUVEL endpoint,
+        //             donc l'ancienne ligne n'est jamais remplacée non plus.
         const code = (err as { statusCode?: number })?.statusCode;
-        if (code === 404 || code === 410) {
+        if (code === 404 || code === 410 || code === 403) {
           await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
         }
       }
