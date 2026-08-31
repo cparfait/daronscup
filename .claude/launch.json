@@ -5,7 +5,14 @@
       "name": "daronsfc",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "sesame",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:/tmp/__DEV__/workflow", "--", "-p", "3001"],
+      "port": 3001
     }
   ]
 }
