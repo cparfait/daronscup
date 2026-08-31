@@ -289,6 +289,88 @@ export async function getDuels(
   }
 }
 
+export type CurrentDuel = {
+  /** Journée en cours ("Journée 3", "Quart de finale · aller"…). */
+  label: string;
+  opponent: { userId: string; name: string };
+  /** Points déjà acquis sur cette journée (0-0 si rien n'est encore joué). */
+  mine: number;
+  theirs: number;
+  /** true tant qu'aucun match de la journée n'est terminé. */
+  notStarted: boolean;
+};
+
+/**
+ * Duel de la journée EN COURS — celui qu'on rappelle au joueur au moment où il
+ * fait ses pronos, pour qu'il ne le découvre pas après coup.
+ *
+ * Réutilise exactement la rotation de `getDuels` : même tri des membres, même
+ * formule d'offset, même séquence de journées (celle de `getMatchdayScores`,
+ * qui ne retient que les journées dont au moins un match est terminé). Rien
+ * n'est recalculé différemment, donc l'historique des duels reste intact.
+ *
+ * Le point délicat est l'index de rotation de la journée en cours, puisqu'elle
+ * n'est justement pas terminée :
+ *   • journée DÉJÀ ENTAMÉE (au moins un match joué) → elle figure déjà dans la
+ *     séquence, on reprend son index ;
+ *   • journée pas encore commencée → elle viendra juste après, index = longueur
+ *     de la séquence.
+ * C'est ce qui évite de sauter une journée sur deux, une journée partiellement
+ * jouée étant déjà comptée.
+ */
+export async function getCurrentDuel(
+  userId: string,
+  members: { userId: string; name: string }[],
+  twoLegged = false
+): Promise<CurrentDuel | null> {
+  try {
+    if (members.length < 2) return null;
+    const ordered = [...members].sort((a, b) => a.userId.localeCompare(b.userId));
+    const myIndex = ordered.findIndex((m) => m.userId === userId);
+    if (myIndex < 0) return null;
+
+    const season = await getViewingSeason();
+    if (!season) return null;
+
+    // La journée en cours = celle du prochain match non terminé de la saison.
+    const next = await prisma.match.findFirst({
+      where: {
+        seasonId: season.id,
+        OR: [{ result: null }, { result: { status: { not: "FINISHED" } } }],
+      },
+      orderBy: { kickoffAt: "asc" },
+      select: { stage: true, matchday: true },
+    });
+    if (!next) return null; // saison terminée : plus de duel en cours
+
+    const key = matchdayKey(next.stage as Stage, next.matchday);
+    const label = matchdayLabel(next.stage as Stage, next.matchday, twoLegged);
+
+    const days = await getMatchdayScores(
+      ordered.map((m) => m.userId),
+      twoLegged
+    );
+    const existing = days.findIndex((d) => d.key === key);
+    const dayIdx = existing >= 0 ? existing : days.length;
+
+    const n = ordered.length;
+    const offset = (dayIdx % (n - 1)) + 1;
+    const opponent = ordered[(myIndex + offset) % n]!;
+    if (opponent.userId === userId) return null;
+
+    const day = existing >= 0 ? days[existing] : undefined;
+    return {
+      label,
+      opponent: { userId: opponent.userId, name: opponent.name },
+      mine: day?.points.get(userId) ?? 0,
+      theirs: day?.points.get(opponent.userId) ?? 0,
+      notStarted: existing < 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────
 // Miroir, bête noire, « ce que tu aurais gagné »
 // ─────────────────────────────────────────────

@@ -14,6 +14,9 @@ import {
   needsPenaltyPick,
 } from "@/lib/season";
 import { buildBettingScope, isBettableMatch } from "@/lib/betting";
+import { getActiveGroup, getGroupMemberIds } from "@/lib/groups";
+import { getCurrentDuel, type CurrentDuel } from "@/lib/fun";
+import { CurrentDuelBanner } from "@/components/current-duel-banner";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Matchs · DaronsFC" };
@@ -96,6 +99,27 @@ export default async function MatchesPage() {
   const unpredicted = matches.filter((m) => !predByMatch.has(m.id)).length;
   const hasKnockout = matches.some((m) => isKnockoutStage(m.stage));
 
+  // Duel de la journée en cours — rappelé ici, au moment où on prono, plutôt
+  // que découvert après coup dans Profil → Duels.
+  let currentDuel: CurrentDuel | null = null;
+  if (session?.user?.id) {
+    const group = await getActiveGroup(session.user.id).catch(() => null);
+    if (group) {
+      const memberIds = await getGroupMemberIds(group.id).catch(() => []);
+      const users = await prisma.user
+        .findMany({
+          where: { id: { in: memberIds }, banned: false },
+          select: { id: true, name: true },
+        })
+        .catch(() => []);
+      currentDuel = await getCurrentDuel(
+        session.user.id,
+        users.map((u) => ({ userId: u.id, name: u.name ?? "Anonyme" })),
+        twoLegged
+      );
+    }
+  }
+
   return (
     <>
       {/* ── Header avec bouton "?" éliminatoires ── */}
@@ -104,6 +128,9 @@ export default async function MatchesPage() {
         subtitle={season ? `À venir — ${season.name}` : "À venir"}
         action={<KnockoutInfoModal hasKnockout={hasKnockout} twoLegged={twoLegged} />}
       />
+
+      {/* ── Duel de la journée en cours ── */}
+      {currentDuel && <CurrentDuelBanner duel={currentDuel} />}
 
       {/* ── Bulle : périmètre réduit aux clubs français ── */}
       {hidden > 0 && (

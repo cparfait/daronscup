@@ -16,6 +16,7 @@ import { compareRanked } from "@/lib/ranking";
 import { jokerPhase, seasonBudgets } from "@/lib/jokers";
 import { getViewingSeason, KNOCKOUT_STAGES } from "@/lib/season";
 import { getPlayersFlair } from "@/lib/fun";
+import { clubKey } from "@/lib/teams";
 import { getDefendingChampions } from "@/lib/season-archive";
 import type {
   Match,
@@ -151,6 +152,61 @@ export async function getFranceMatchToday(): Promise<Match | null> {
     const today = parisDateStr(new Date());
     const match = rows.find((m) => parisDateStr(m.kickoffAt) === today);
     return match ? toUiMatch(match) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Le match du CLUB DE CŒUR d'un joueur prévu AUJOURD'HUI (fuseau Paris), ou
+ * null. Pendant de `getFranceMatchToday` pour les compétitions de clubs : il
+ * active le thème aux couleurs du club (cf. lib/club-themes.ts).
+ *
+ * Personnel, donc : contrairement au thème tricolore, deux joueurs du même
+ * groupe ne voient pas la même chose le même soir.
+ *
+ * L'appariement passe par la clé canonique (`clubKey`) et non par une égalité
+ * de chaînes : le club de cœur a été enregistré avec le nom d'affichage en
+ * vigueur à l'époque, qui a pu changer depuis.
+ */
+export async function getFavoriteClubMatchToday(
+  userId: string
+): Promise<{ match: Match; team: string } | null> {
+  try {
+    const season = await getViewingSeason();
+    if (!season || season.kind !== "CLUBS") return null;
+
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { favoriteTeam: true },
+    });
+    const team = me?.favoriteTeam;
+    if (!team) return null;
+
+    const key = clubKey(team);
+    if (!key) return null;
+
+    const now = Date.now();
+    const rows = await prisma.match.findMany({
+      where: {
+        seasonId: season.id,
+        // Fenêtre large (±1 j) pour couvrir tous les fuseaux, on affine ensuite.
+        kickoffAt: {
+          gte: new Date(now - 24 * 3_600_000),
+          lte: new Date(now + 24 * 3_600_000),
+        },
+      },
+      include: { result: true },
+      orderBy: { kickoffAt: "asc" },
+    });
+
+    const today = parisDateStr(new Date());
+    const match = rows.find(
+      (m) =>
+        parisDateStr(m.kickoffAt) === today &&
+        (clubKey(m.homeTeam) === key || clubKey(m.awayTeam) === key)
+    );
+    return match ? { match: toUiMatch(match), team } : null;
   } catch {
     return null;
   }

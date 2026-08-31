@@ -84,11 +84,19 @@ export function SeasonAnnouncement() {
         </p>
 
         <Link
+          href="/guide"
+          onClick={() => close(false)}
+          className="mb-2 flex items-center justify-center gap-1 text-sm font-semibold text-[var(--color-gold-bright)] hover:underline"
+        >
+          Découvrir l&apos;app en 5 minutes <ChevronRight className="size-4" />
+        </Link>
+
+        <Link
           href="/regles"
           onClick={() => close(false)}
-          className="mb-4 flex items-center justify-center gap-1 text-sm font-semibold text-[var(--color-gold-bright)] hover:underline"
+          className="mb-4 flex items-center justify-center gap-1 text-xs font-semibold text-[var(--color-muted)] hover:underline"
         >
-          Voir les règles du jeu <ChevronRight className="size-4" />
+          Voir les règles du jeu <ChevronRight className="size-3.5" />
         </Link>
 
         <label className="mb-4 flex cursor-pointer items-center justify-center gap-2 text-xs text-[var(--color-muted)]">

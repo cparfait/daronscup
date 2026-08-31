@@ -192,6 +192,24 @@ export default async function ProfilePage() {
         </Card>
       </Link>
 
+      {/* Prise en main — le guide illustré, pensé pour les nouveaux */}
+      <Link href="/guide" className="mb-3 block">
+        <Card className="glass card-hover flex items-center gap-3 border-[var(--color-gold)]/25 p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-gold)]/15 text-lg">
+            🧭
+          </span>
+          <div className="flex-1">
+            <p className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--color-cream)]">
+              Prise en main
+            </p>
+            <p className="text-xs text-[var(--color-muted)]">
+              Le tour de l&apos;app en images, en 5 minutes
+            </p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-[var(--color-muted)]" />
+        </Card>
+      </Link>
+
       {/* Règles du jeu — la page qui explique tout */}
       <Link href="/regles" className="mb-6 block">
         <Card className="glass card-hover flex items-center gap-3 border-[var(--color-pitch)]/25 p-4">

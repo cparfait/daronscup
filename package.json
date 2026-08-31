@@ -17,6 +17,7 @@
     "admin:promote": "tsx --env-file=.env scripts/admin-promote.ts",
     "flags": "tsx scripts/fetch-flags.ts",
     "odds:check": "tsx --env-file=.env scripts/check-odds.ts",
+    "themes:check": "tsx scripts/check-club-themes.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

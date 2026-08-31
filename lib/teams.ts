@@ -191,6 +191,16 @@ function genericKey(name: string): string {
 }
 
 /**
+ * Les clés canoniques connues. Sert aux tables indexées par `clubKey` (les
+ * palettes de lib/club-themes.ts) à vérifier qu'elles emploient bien une clé
+ * atteignable : `clubKey("man-united")` vaut "man united", donc une clé à
+ * tirets n'est pas son propre point fixe et ne peut pas se valider seule.
+ */
+export const CANONICAL_CLUB_KEYS: ReadonlySet<string> = new Set(
+  Object.keys(CLUB_ALIASES)
+);
+
+/**
  * Clé canonique d'un nom de club, comparable entre football-data et The Odds
  * API. Renvoie "" pour un nom vide.
  */

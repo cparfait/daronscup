@@ -35,3 +35,6 @@ yarn-error.log*
 
 # grappe Postgres locale (dev sans Docker)
 /.pgdata
+
+# paire VAPID générée à la main (à supprimer après usage)
+/vapid-keys.txt
