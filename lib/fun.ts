@@ -206,12 +206,14 @@ export async function getDuelMembers(memberIds: string[]): Promise<DuelMember[]>
   try {
     const users = await prisma.user.findMany({
       where: { id: { in: memberIds }, banned: false },
-      select: { id: true, name: true, image: true },
+      select: { id: true, name: true, image: true, avatarUrl: true },
     });
     return users.map((u) => ({
       userId: u.id,
       name: u.name ?? "Anonyme",
-      image: u.image,
+      // `avatarUrl` d'abord : c'est l'avatar choisi dans l'app, `image` n'est
+      // que le repli OAuth (cf. app/api/profile).
+      image: u.avatarUrl ?? u.image,
     }));
   } catch {
     return [];

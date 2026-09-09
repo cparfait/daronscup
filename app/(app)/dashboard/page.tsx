@@ -20,6 +20,7 @@ import {
   getChampionPick,
   getChampionableTeams,
   isChampionPickOpen,
+  getAvatar,
 } from "@/lib/data/queries";
 import { ChampionPickCard } from "@/components/champion-pick-card";
 import { DuelCard } from "@/components/duel-card";
@@ -142,7 +143,9 @@ export default async function DashboardPage() {
     ? await getMyPrediction(userId, featuredMatch.id)
     : null;
 
-  const avatar = session?.user?.image;
+  // Relu en base : un avatar envoyé par le joueur est une data URL, qui ne
+  // tient pas dans le JWT (cf. getAvatar).
+  const avatar = await getAvatar(userId);
 
   return (
     <>

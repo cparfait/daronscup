@@ -7,6 +7,11 @@ import { z } from "zod";
 import { prisma } from "./prisma";
 import { authConfig } from "./auth.config";
 
+/** Ne laisse passer que les URL d'avatar hébergées ailleurs (pas de data URL). */
+function remoteAvatar(url: string | null | undefined): string | null {
+  return url && /^https?:\/\//.test(url) ? url : null;
+}
+
 // L'identifiant accepte un email OU un nom d'utilisateur (ex. "admin").
 const credentialsSchema = z.object({
   email: z.string().min(3),
@@ -91,7 +96,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           name: user.name,
           email: user.email,
-          image: user.avatarUrl ?? user.image,
+          // Un avatar envoyé par le joueur est une data URL de ~30 Ko : dans le
+          // JWT, elle exploserait le cookie de session. On ne garde ici que les
+          // avatars distants (Google) ; les pages relisent le reste en base
+          // (cf. getAvatar dans lib/data/queries.ts).
+          image: remoteAvatar(user.avatarUrl ?? user.image),
           role: user.role,
         };
       },

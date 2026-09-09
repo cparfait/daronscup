@@ -340,6 +340,26 @@ export async function getPersonalStats(userId: string): Promise<PersonalStats> {
   }
 }
 
+/**
+ * Avatar d'un joueur, relu en base.
+ *
+ * Il ne transite PAS par la session : depuis qu'on accepte une photo envoyée
+ * par le joueur (stockée en data URL, cf. app/api/profile), la mettre dans le
+ * JWT ferait un cookie de 200 Ko. `session.user.image` ne contient donc que les
+ * avatars distants (Google) — pour le reste, il faut passer par ici.
+ */
+export async function getAvatar(userId: string): Promise<string | null> {
+  try {
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true, image: true },
+    });
+    return u?.avatarUrl ?? u?.image ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Pari « vainqueur du tournoi » d'un joueur, ou null s'il n'a pas encore choisi. */
 export async function getChampionPick(
   userId: string

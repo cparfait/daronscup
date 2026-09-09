@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -8,6 +7,7 @@ import { PushToggle } from "@/components/push-toggle";
 import { DeleteAccountButton } from "@/components/delete-account-button";
 import { Flag } from "@/components/flag";
 import { FavoriteTeamPicker } from "@/components/favorite-team-picker";
+import { AvatarPicker } from "@/components/avatar-picker";
 import {
   getBadges,
   getUserStats,
@@ -31,7 +31,6 @@ import {
   CheckCircle,
   Lock,
   Shield,
-  TrendingUp,
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -51,17 +50,26 @@ export default async function ProfilePage() {
   const season = await getViewingSeason();
 
   // Club de cœur (décoratif) + catalogue des équipes de la compétition.
+  // L'avatar est relu en base, pas pris dans la session : le JWT ne se
+  // rafraîchit qu'au bout d'une minute, et on veut voir sa nouvelle photo dès
+  // le rechargement qui suit l'envoi.
   const [favoriteTeams, me] = await Promise.all([
     getChampionableTeams(),
     user?.id
       ? prisma.user
           .findUnique({
             where: { id: user.id },
-            select: { favoriteTeam: true, favoriteTeamFlag: true },
+            select: {
+              favoriteTeam: true,
+              favoriteTeamFlag: true,
+              avatarUrl: true,
+              image: true,
+            },
           })
           .catch(() => null)
       : null,
   ]);
+  const avatar = me?.avatarUrl ?? me?.image ?? user?.image ?? null;
   const favorite =
     me?.favoriteTeam && me.favoriteTeamFlag
       ? { team: me.favoriteTeam, flag: me.favoriteTeamFlag }
@@ -106,24 +114,7 @@ export default async function ProfilePage() {
       {/* Profile hero card */}
       <Card className="glass mb-6 p-5">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            {user?.image ? (
-              <Image
-                src={user.image}
-                alt={user.name ?? "Avatar"}
-                width={72}
-                height={72}
-                className="rounded-full ring-2 ring-[var(--color-pitch)]/30"
-              />
-            ) : (
-              <div className="flex size-[72px] items-center justify-center rounded-full bg-[var(--color-pitch)] text-3xl font-bold ring-2 ring-[var(--color-pitch-bright)]/30">
-                {(user?.name ?? "D").charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-[var(--color-pitch)] text-[10px]">
-              <TrendingUp className="size-3 text-white" />
-            </div>
-          </div>
+          <AvatarPicker name={user?.name ?? "D"} current={avatar} />
 
           <div className="flex-1 min-w-0">
             <EditableName initialName={user?.name ?? "Daron anonyme"} />
