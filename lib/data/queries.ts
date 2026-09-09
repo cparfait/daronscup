@@ -18,6 +18,7 @@ import { getViewingSeason, KNOCKOUT_STAGES } from "@/lib/season";
 import { getPlayersFlair } from "@/lib/fun";
 import { clubKey } from "@/lib/teams";
 import { getDefendingChampions } from "@/lib/season-archive";
+import { getBettingScope, isBettableMatch } from "@/lib/betting";
 import type {
   Match,
   StandingTeam,
@@ -813,7 +814,21 @@ export async function getPredictionComparison(
     const targetByMatch = new Map(targetPreds.map((p) => [p.matchId, p]));
     const mineByMatch = new Map(minePreds.map((p) => [p.matchId, p]));
 
-    const rows: ComparisonRow[] = matches.map((m) => {
+    // Hors périmètre = hors écran. Une phase de ligue de C1, c'est 144 matchs
+    // dont on ne parie qu'une poignée (cf. lib/betting.ts) : afficher les
+    // autres noyait la comparaison sous des lignes « Zéro prono » des deux
+    // côtés, sur des affiches auxquelles personne n'a jamais pu jouer.
+    // Un prono posé garde toujours sa ligne : le périmètre se recalcule à
+    // chaque synchro, et masquer un match joué ferait disparaître des points.
+    const scope = await getBettingScope(sid);
+    const inScope = matches.filter(
+      (m) =>
+        isBettableMatch(m, scope) ||
+        targetByMatch.has(m.id) ||
+        mineByMatch.has(m.id)
+    );
+
+    const rows: ComparisonRow[] = inScope.map((m) => {
       const r = m.result;
       const scored = r && (r.status === "FINISHED" || r.status === "LIVE");
       const pts = (p: { homeScore: number; awayScore: number; joker: boolean }) =>
