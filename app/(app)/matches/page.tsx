@@ -15,8 +15,8 @@ import {
 } from "@/lib/season";
 import { buildBettingScope, isBettableMatch } from "@/lib/betting";
 import { getActiveGroup, getGroupMemberIds } from "@/lib/groups";
-import { getCurrentDuel, type CurrentDuel } from "@/lib/fun";
-import { CurrentDuelBanner } from "@/components/current-duel-banner";
+import { getCurrentDuel, getDuelMembers, type CurrentDuel } from "@/lib/fun";
+import { DuelCard } from "@/components/duel-card";
 import { dayKey, dayLabel } from "@/lib/utils";
 
 export const metadata = { title: "Matchs · DaronsFC" };
@@ -106,15 +106,9 @@ export default async function MatchesPage() {
     const group = await getActiveGroup(session.user.id).catch(() => null);
     if (group) {
       const memberIds = await getGroupMemberIds(group.id).catch(() => []);
-      const users = await prisma.user
-        .findMany({
-          where: { id: { in: memberIds }, banned: false },
-          select: { id: true, name: true },
-        })
-        .catch(() => []);
       currentDuel = await getCurrentDuel(
         session.user.id,
-        users.map((u) => ({ userId: u.id, name: u.name ?? "Anonyme" })),
+        await getDuelMembers(memberIds),
         twoLegged
       );
     }
@@ -130,7 +124,7 @@ export default async function MatchesPage() {
       />
 
       {/* ── Duel de la journée en cours ── */}
-      {currentDuel && <CurrentDuelBanner duel={currentDuel} />}
+      {currentDuel && <DuelCard duel={currentDuel} variant="compact" />}
 
       {/* ── Bulle : périmètre réduit aux clubs français ── */}
       {hidden > 0 && (

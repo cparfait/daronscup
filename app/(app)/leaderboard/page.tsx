@@ -10,6 +10,8 @@ import { GroupSwitcher } from "@/components/group-switcher";
 import { BracketView } from "@/components/bracket-view";
 import { cn } from "@/lib/utils";
 import { getLiveLeaderboard, getMatches } from "@/lib/data/queries";
+import { getCurrentDuel, getDuelMembers } from "@/lib/fun";
+import { getViewingSeason, hasTwoLeggedTies } from "@/lib/season";
 import {
   getSwitchableGroups,
   getGroupMemberIds,
@@ -52,6 +54,19 @@ export default async function LeaderboardPage({
 
   const { entries, hasLive } = await getLiveLeaderboard(memberIds);
   const top3 = entries.slice(0, 3);
+
+  // Adversaire du duel de la journée : signalé directement dans le classement,
+  // pour qu'on voie tout de suite QUI on doit battre cette journée-ci. Hors
+  // classement général : les duels se jouent au sein d'un groupe.
+  const season = await getViewingSeason();
+  const currentDuel = isGlobal
+    ? null
+    : await getCurrentDuel(
+        userId,
+        await getDuelMembers(memberIds),
+        hasTwoLeggedTies(season)
+      );
+  const duelOpponentId = currentDuel?.opponent.userId ?? null;
 
   const scopeLabel = isTournoi ? "Tableau du tournoi" : isGlobal ? "Tous les joueurs" : activeGroup.name;
 
@@ -207,6 +222,14 @@ export default async function LeaderboardPage({
                       className="shrink-0 text-xs leading-none"
                     >
                       👑
+                    </span>
+                  )}
+                  {user.userId === duelOpponentId && (
+                    <span
+                      title={`Ton duel de la journée : ${currentDuel?.label}`}
+                      className="shrink-0 rounded-full bg-[var(--color-gold)]/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[var(--color-gold)]"
+                    >
+                      ⚔️ Ton duel
                     </span>
                   )}
                   {user.streak >= 3 && (

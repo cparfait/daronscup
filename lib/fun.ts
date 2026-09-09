@@ -188,6 +188,36 @@ export async function getMatchdayScores(
   }
 }
 
+/** Membre d'un groupe, forme minimale attendue par les duels. */
+export type DuelMember = {
+  userId: string;
+  name: string;
+  image?: string | null;
+};
+
+/**
+ * Les membres non bannis d'un groupe, prêts pour `getDuels` / `getCurrentDuel`.
+ * Factorisé ici parce que trois pages (Hub, Matchs, Duels) ont besoin de la
+ * même liste, avec le même filtre `banned` — un oubli fabriquerait des duels
+ * contre un joueur exclu.
+ */
+export async function getDuelMembers(memberIds: string[]): Promise<DuelMember[]> {
+  if (memberIds.length === 0) return [];
+  try {
+    const users = await prisma.user.findMany({
+      where: { id: { in: memberIds }, banned: false },
+      select: { id: true, name: true, image: true },
+    });
+    return users.map((u) => ({
+      userId: u.id,
+      name: u.name ?? "Anonyme",
+      image: u.image,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export type Duel = {
   /** Journée concernée. */
   label: string;
@@ -292,12 +322,19 @@ export async function getDuels(
 export type CurrentDuel = {
   /** Journée en cours ("Journée 3", "Quart de finale · aller"…). */
   label: string;
-  opponent: { userId: string; name: string };
+  /** Moi, pour l'affichage face à face. */
+  me: { name: string; image?: string | null };
+  opponent: DuelMember;
   /** Points déjà acquis sur cette journée (0-0 si rien n'est encore joué). */
   mine: number;
   theirs: number;
   /** true tant qu'aucun match de la journée n'est terminé. */
   notStarted: boolean;
+  /**
+   * Bilan tête-à-tête face à CET adversaire, sur les journées précédentes
+   * uniquement — la journée en cours est déjà racontée par le score ci-dessus.
+   */
+  record: { wins: number; draws: number; losses: number };
 };
 
 /**
@@ -320,7 +357,7 @@ export type CurrentDuel = {
  */
 export async function getCurrentDuel(
   userId: string,
-  members: { userId: string; name: string }[],
+  members: DuelMember[],
   twoLegged = false
 ): Promise<CurrentDuel | null> {
   try {
@@ -358,13 +395,36 @@ export async function getCurrentDuel(
     const opponent = ordered[(myIndex + offset) % n]!;
     if (opponent.userId === userId) return null;
 
+    // Bilan face à cet adversaire, rejoué sur la MÊME rotation que `getDuels`
+    // à partir des journées déjà chargées — aucune requête supplémentaire. La
+    // journée en cours est exclue : son score est affiché à part, la compter
+    // ici la ferait apparaître deux fois.
+    const record = { wins: 0, draws: 0, losses: 0 };
+    days.forEach((d, idx) => {
+      if (idx === existing) return;
+      const off = (idx % (n - 1)) + 1;
+      if (ordered[(myIndex + off) % n]?.userId !== opponent.userId) return;
+      const a = d.points.get(userId) ?? 0;
+      const b = d.points.get(opponent.userId) ?? 0;
+      if (a > b) record.wins++;
+      else if (a < b) record.losses++;
+      else record.draws++;
+    });
+
+    const me = ordered[myIndex]!;
     const day = existing >= 0 ? days[existing] : undefined;
     return {
       label,
-      opponent: { userId: opponent.userId, name: opponent.name },
+      me: { name: me.name, image: me.image },
+      opponent: {
+        userId: opponent.userId,
+        name: opponent.name,
+        image: opponent.image,
+      },
       mine: day?.points.get(userId) ?? 0,
       theirs: day?.points.get(opponent.userId) ?? 0,
       notStarted: existing < 0,
+      record,
     };
   } catch {
     return null;

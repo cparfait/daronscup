@@ -2,10 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Swords, Copy, Skull, Clock } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
-import { getDuels, getRivalry, getPlayersFlair } from "@/lib/fun";
+import { DuelCard } from "@/components/duel-card";
+import {
+  getDuels,
+  getRivalry,
+  getPlayersFlair,
+  getCurrentDuel,
+  getDuelMembers,
+} from "@/lib/fun";
 import { getGroupMemberIds, requireActiveGroup } from "@/lib/groups";
 import { getViewingSeason, hasTwoLeggedTies } from "@/lib/season";
 import { cn } from "@/lib/utils";
@@ -28,23 +34,19 @@ export default async function RivalsPage() {
     getViewingSeason(),
   ]);
 
-  const users = await prisma.user
-    .findMany({
-      where: { id: { in: memberIds }, banned: false },
-      select: { id: true, name: true },
-    })
-    .catch(() => []);
-  const members = users.map((u) => ({ userId: u.id, name: u.name ?? "Anonyme" }));
+  const members = await getDuelMembers(memberIds);
   const twoLegged = hasTwoLeggedTies(season);
 
-  const [duels, rivalry, flair] = await Promise.all([
+  const [duels, rivalry, flair, currentDuel] = await Promise.all([
     getDuels(userId, members, twoLegged),
     getRivalry(userId, members, twoLegged),
     getPlayersFlair(memberIds),
+    getCurrentDuel(userId, members, twoLegged),
   ]);
 
   const mine = flair.get(userId);
   const nothingYet =
+    !currentDuel &&
     duels.recent.length === 0 &&
     !rivalry.mirror &&
     !rivalry.shouldHaveCopied &&
@@ -76,6 +78,16 @@ export default async function RivalsPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-5">
+          {/* ── Le duel en cours, en tête : c'est le seul qui se joue encore ── */}
+          {currentDuel && (
+            <div>
+              <h2 className="mb-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-muted)]">
+                Duel de la journée
+              </h2>
+              <DuelCard duel={currentDuel} href={null} />
+            </div>
+          )}
+
           {/* ── Ma série et ma ponctualité ── */}
           {mine && (mine.streak > 0 || mine.medianLeadMinutes !== null) && (
             <Card className="glass flex items-center gap-4 p-4">

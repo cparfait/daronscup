@@ -22,6 +22,8 @@ import {
   isChampionPickOpen,
 } from "@/lib/data/queries";
 import { ChampionPickCard } from "@/components/champion-pick-card";
+import { DuelCard } from "@/components/duel-card";
+import { getCurrentDuel, getDuelMembers } from "@/lib/fun";
 import {
   getSwitchableGroups,
   getGroupMemberIds,
@@ -59,7 +61,14 @@ export default async function DashboardPage() {
   ]);
   const twoLegged = hasTwoLeggedTies(season);
 
-  const stats = await getUserStats(userId);
+  // Duel de la journée : c'est LE ressort social du jeu, il n'était visible
+  // que dans Profil → Duels, où personne n'allait. On le remonte sur le Hub.
+  const [stats, currentDuel] = await Promise.all([
+    getUserStats(userId),
+    getDuelMembers(memberIds).then((members) =>
+      getCurrentDuel(userId, members, twoLegged)
+    ),
+  ]);
   const [championPick, championTeams, championOpen] = await Promise.all([
     getChampionPick(userId),
     getChampionableTeams(),
@@ -269,6 +278,15 @@ export default async function DashboardPage() {
           </Card>
         </Link>
       </div>
+
+      {currentDuel && (
+        <div className="mb-6 animate-stagger stagger-2">
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-sm font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+            Duel de la journée
+          </h2>
+          <DuelCard duel={currentDuel} />
+        </div>
+      )}
 
       {featuredMatch && (
         <div className="mb-6 animate-stagger stagger-2">
