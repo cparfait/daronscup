@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Swords, Copy, Skull, Clock } from "lucide-react";
+import { ArrowLeft, Swords, Copy, Skull, Clock, Flame, History } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -18,6 +18,16 @@ import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Duels · DaronsFC" };
 export const dynamic = "force-dynamic";
+
+// Couleurs littérales (pas les variables de thème) : le vert « victoire » doit
+// rester vert même quand `--color-pitch` passe en bleu (thème France) ou aux
+// couleurs d'un club. Chaque encart a sa teinte, pour qu'on distingue les
+// rubriques d'un coup d'œil en scrollant.
+const WIN = "#22c55e";
+const LOSS = "#ef4444";
+const MIRROR = "#a78bfa"; // violet — le miroir
+const LEAD = "#38bdf8"; // cyan — la ponctualité
+const STREAK = "#fb923c"; // orange — la série
 
 /**
  * Duels de journée et rivalités au sein du groupe actif. Tout est dérivé des
@@ -81,30 +91,39 @@ export default async function RivalsPage() {
           {/* ── Le duel en cours, en tête : c'est le seul qui se joue encore ── */}
           {currentDuel && (
             <div>
-              <h2 className="mb-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-muted)]">
+              <SectionTitle icon={Swords} color="var(--color-gold)">
                 Duel de la journée
-              </h2>
+              </SectionTitle>
               <DuelCard duel={currentDuel} href={null} />
             </div>
           )}
 
           {/* ── Ma série et ma ponctualité ── */}
           {mine && (mine.streak > 0 || mine.medianLeadMinutes !== null) && (
-            <Card className="glass flex items-center gap-4 p-4">
+            <Card className="glass flex items-stretch gap-4 overflow-hidden p-4">
               {mine.streak > 0 && (
-                <div className="text-center">
-                  <p className="font-[family-name:var(--font-display)] text-2xl font-bold text-orange-400">
-                    🔥{mine.streak}
+                <div
+                  className="-my-4 -ml-4 flex flex-col items-center justify-center px-4 text-center"
+                  style={{
+                    background: `linear-gradient(180deg, ${STREAK}22, transparent)`,
+                  }}
+                >
+                  <Flame className="size-4" style={{ color: STREAK }} />
+                  <p
+                    className="mt-1 font-[family-name:var(--font-display)] text-2xl font-bold leading-none"
+                    style={{ color: STREAK }}
+                  >
+                    {mine.streak}
                   </p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
-                    Série en cours
+                  <p className="mt-1 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">
+                    Série
                   </p>
                 </div>
               )}
               {mine.medianLeadMinutes !== null && (
-                <div className="flex-1 border-l border-[var(--color-border-subtle)] pl-4">
+                <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 text-sm text-[var(--color-cream)]">
-                    <Clock className="size-3.5 text-[var(--color-muted)]" />
+                    <Clock className="size-3.5 shrink-0" style={{ color: LEAD }} />
                     {formatLead(mine.medianLeadMinutes)}
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--color-muted)]">
@@ -119,93 +138,104 @@ export default async function RivalsPage() {
 
           {/* ── Ce que tu aurais gagné ── */}
           {rivalry.shouldHaveCopied && (
-            <Card className="glass border-[var(--color-gold)]/30 bg-[var(--color-gold)]/[0.05] p-4">
-              <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                <Copy className="size-3.5" />
-                Il fallait recopier
-              </p>
-              <p className="text-sm leading-relaxed text-[var(--color-cream)]">
-                Sur les matchs que vous avez tous les deux pronostiqués,{" "}
-                <strong className="text-[var(--color-gold)]">
-                  {rivalry.shouldHaveCopied.name}
-                </strong>{" "}
-                a marqué{" "}
-                <strong>{rivalry.shouldHaveCopied.theirPoints} pts</strong> quand
-                tu en as pris{" "}
-                <strong>{rivalry.shouldHaveCopied.myPoints}</strong>. Soit{" "}
-                <strong className="text-[var(--color-gold)]">
-                  +{rivalry.shouldHaveCopied.delta} pts
-                </strong>{" "}
-                si tu l&apos;avais bêtement copié.
-              </p>
-            </Card>
+            <Accent color="var(--color-gold)" icon={Copy} label="Il fallait recopier">
+              Sur les matchs que vous avez tous les deux pronostiqués,{" "}
+              <strong className="text-[var(--color-gold)]">
+                {rivalry.shouldHaveCopied.name}
+              </strong>{" "}
+              a marqué{" "}
+              <strong>{rivalry.shouldHaveCopied.theirPoints} pts</strong> quand tu
+              en as pris <strong>{rivalry.shouldHaveCopied.myPoints}</strong>. Soit{" "}
+              <strong className="text-[var(--color-gold)]">
+                +{rivalry.shouldHaveCopied.delta} pts
+              </strong>{" "}
+              si tu l&apos;avais bêtement copié.
+            </Accent>
           )}
 
           {/* ── Ton miroir ── */}
           {rivalry.mirror && (
-            <Card className="glass p-4">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                🪞 Ton miroir
-              </p>
-              <p className="text-sm leading-relaxed text-[var(--color-cream)]">
-                <strong>{rivalry.mirror.name}</strong> pose exactement le même
-                prono que toi{" "}
-                <strong>{Math.round(rivalry.mirror.sameRate * 100)}%</strong> du
-                temps ({rivalry.mirror.common} matchs en commun).
-                {rivalry.mirror.sameRate > 0.5
-                  ? " À ce stade, vous pourriez partager un compte."
-                  : ""}
-              </p>
-            </Card>
+            <Accent color={MIRROR} emoji="🪞" label="Ton miroir">
+              <strong style={{ color: MIRROR }}>{rivalry.mirror.name}</strong> pose
+              exactement le même prono que toi{" "}
+              <strong style={{ color: MIRROR }}>
+                {Math.round(rivalry.mirror.sameRate * 100)}%
+              </strong>{" "}
+              du temps ({rivalry.mirror.common} matchs en commun).
+              {rivalry.mirror.sameRate > 0.5
+                ? " À ce stade, vous pourriez partager un compte."
+                : ""}
+            </Accent>
           )}
 
           {/* ── Ta bête noire ── */}
           {rivalry.nemesis && (
-            <Card className="glass border-[var(--color-danger)]/25 bg-[var(--color-danger)]/[0.05] p-4">
-              <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                <Skull className="size-3.5" />
-                Ta bête noire
-              </p>
-              <p className="text-sm leading-relaxed text-[var(--color-cream)]">
-                <strong>{rivalry.nemesis.name}</strong> t&apos;a battu sur{" "}
-                <strong>{rivalry.nemesis.lostTo}</strong> journée
-                {rivalry.nemesis.lostTo > 1 ? "s" : ""} — tu n&apos;as fait mieux
-                que {rivalry.nemesis.beat} fois.
-              </p>
-            </Card>
+            <Accent color={LOSS} icon={Skull} label="Ta bête noire">
+              <strong style={{ color: LOSS }}>{rivalry.nemesis.name}</strong>{" "}
+              t&apos;a battu sur <strong>{rivalry.nemesis.lostTo}</strong> journée
+              {rivalry.nemesis.lostTo > 1 ? "s" : ""} — tu n&apos;as fait mieux que{" "}
+              {rivalry.nemesis.beat} fois.
+            </Accent>
           )}
 
           {/* ── Bilan des duels ── */}
           {duels.opponents.length > 0 && (
             <div>
-              <h2 className="mb-2 flex items-center gap-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-muted)]">
-                <Swords className="size-4" />
+              <SectionTitle icon={Swords} color={WIN}>
                 Bilan des duels
-              </h2>
+              </SectionTitle>
               <Card className="glass overflow-hidden">
                 <ul>
-                  {duels.opponents.map((o, i) => (
-                    <li
-                      key={o.userId}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-2.5 text-sm",
-                        i > 0 && "border-t border-[var(--color-border-subtle)]"
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {o.name}
-                      </span>
-                      <span className="shrink-0 font-[family-name:var(--font-mono)] text-sm">
-                        <span className="font-bold text-[#22c55e]">{o.wins}</span>
-                        <span className="text-[var(--color-muted)]"> – </span>
-                        <span className="text-[var(--color-muted)]">{o.draws}</span>
-                        <span className="text-[var(--color-muted)]"> – </span>
-                        <span className="font-bold text-[var(--color-danger)]">
-                          {o.losses}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
+                  {duels.opponents.map((o, i) => {
+                    const played = o.wins + o.draws + o.losses;
+                    const pct = (n: number) =>
+                      played > 0 ? `${(n / played) * 100}%` : "0%";
+                    return (
+                      <li
+                        key={o.userId}
+                        className={cn(
+                          "px-4 py-2.5",
+                          i > 0 && "border-t border-[var(--color-border-subtle)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="min-w-0 flex-1 truncate font-medium">
+                            {o.name}
+                          </span>
+                          <span className="shrink-0 font-[family-name:var(--font-mono)] text-sm">
+                            <span className="font-bold" style={{ color: WIN }}>
+                              {o.wins}
+                            </span>
+                            <span className="text-[var(--color-muted)]"> – </span>
+                            <span className="text-[var(--color-muted)]">
+                              {o.draws}
+                            </span>
+                            <span className="text-[var(--color-muted)]"> – </span>
+                            <span className="font-bold" style={{ color: LOSS }}>
+                              {o.losses}
+                            </span>
+                          </span>
+                        </div>
+                        {/* Barre V/N/D : le bilan se lit sans compter. */}
+                        {played > 0 && (
+                          <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-3)]">
+                            <span
+                              style={{ width: pct(o.wins), background: WIN }}
+                            />
+                            <span
+                              style={{
+                                width: pct(o.draws),
+                                background: "var(--color-muted)",
+                              }}
+                            />
+                            <span
+                              style={{ width: pct(o.losses), background: LOSS }}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </Card>
               <p className="mt-1.5 px-1 text-[11px] text-[var(--color-muted)]">
@@ -218,35 +248,55 @@ export default async function RivalsPage() {
           {/* ── Derniers duels ── */}
           {duels.recent.length > 0 && (
             <div>
-              <h2 className="mb-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-muted)]">
+              <SectionTitle icon={History} color={LEAD}>
                 Derniers duels
-              </h2>
+              </SectionTitle>
               <div className="flex flex-col gap-2">
-                {duels.recent.map((d, i) => (
-                  <Card
-                    key={`${d.label}-${i}`}
-                    className={cn(
-                      "glass flex items-center gap-3 p-3 text-sm",
-                      d.outcome === "win" && "border-[#22c55e]/30",
-                      d.outcome === "loss" && "border-[var(--color-danger)]/30"
-                    )}
-                  >
-                    <span className="w-6 shrink-0 text-center text-base leading-none">
-                      {d.outcome === "win" ? "✅" : d.outcome === "loss" ? "❌" : "🤝"}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[var(--color-cream)]">
-                        vs {d.opponent.name}
+                {duels.recent.map((d, i) => {
+                  const tint =
+                    d.outcome === "win" ? WIN : d.outcome === "loss" ? LOSS : null;
+                  return (
+                    <Card
+                      key={`${d.label}-${i}`}
+                      className="glass relative flex items-center gap-3 overflow-hidden p-3 pl-4 text-sm"
+                      style={
+                        tint
+                          ? {
+                              borderColor: `${tint}59`,
+                              background: `linear-gradient(90deg, ${tint}1f, transparent 60%)`,
+                            }
+                          : undefined
+                      }
+                    >
+                      {/* Liseré de couleur : gagné / perdu se voit avant de lire. */}
+                      <span
+                        className="absolute inset-y-0 left-0 w-1"
+                        style={{ background: tint ?? "var(--color-muted)" }}
+                      />
+                      <span className="w-6 shrink-0 text-center text-base leading-none">
+                        {d.outcome === "win"
+                          ? "✅"
+                          : d.outcome === "loss"
+                            ? "❌"
+                            : "🤝"}
                       </span>
-                      <span className="text-xs text-[var(--color-muted)]">
-                        {d.label}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[var(--color-cream)]">
+                          vs {d.opponent.name}
+                        </span>
+                        <span className="text-xs text-[var(--color-muted)]">
+                          {d.label}
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 font-[family-name:var(--font-mono)] font-bold">
-                      {d.mine} – {d.theirs}
-                    </span>
-                  </Card>
-                ))}
+                      <span
+                        className="shrink-0 font-[family-name:var(--font-mono)] font-bold"
+                        style={{ color: tint ?? undefined }}
+                      >
+                        {d.mine} – {d.theirs}
+                      </span>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -254,6 +304,75 @@ export default async function RivalsPage() {
       )}
     </>
   );
+}
+
+/** Titre de rubrique, avec pastille colorée — repère visuel au scroll. */
+function SectionTitle({
+  icon: Icon,
+  color,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <h2 className="mb-2 flex items-center gap-2 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-widest text-[var(--color-muted)]">
+      <span
+        className="flex size-6 items-center justify-center rounded-lg"
+        style={{ background: `${colorAlpha(color)}` }}
+      >
+        <Icon className="size-3.5" style={{ color }} />
+      </span>
+      {children}
+    </h2>
+  );
+}
+
+/** Encart d'anecdote teinté (miroir, bête noire, « il fallait recopier »…). */
+function Accent({
+  color,
+  icon: Icon,
+  emoji,
+  label,
+  children,
+}: {
+  color: string;
+  icon?: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  emoji?: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card
+      className="glass relative overflow-hidden p-4 pl-5"
+      style={{
+        borderColor: `${colorAlpha(color, "4d")}`,
+        background: `linear-gradient(135deg, ${colorAlpha(color, "1a")}, transparent 70%)`,
+      }}
+    >
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
+      <p
+        className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider"
+        style={{ color }}
+      >
+        {Icon ? <Icon className="size-3.5" /> : <span>{emoji}</span>}
+        {label}
+      </p>
+      <p className="text-sm leading-relaxed text-[var(--color-cream)]">{children}</p>
+    </Card>
+  );
+}
+
+/**
+ * Teinte translucide d'une couleur d'accent. Les hex littéraux acceptent un
+ * suffixe alpha ; les variables CSS (`var(--color-gold)`) passent par
+ * `color-mix`, qui, lui, ne se concatène pas.
+ */
+function colorAlpha(color: string, alpha = "26"): string {
+  if (color.startsWith("#")) return `${color}${alpha}`;
+  const pct = Math.round((parseInt(alpha, 16) / 255) * 100);
+  return `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 }
 
 /** « 2 h 15 avant le coup d'envoi », « 12 min avant »… */
