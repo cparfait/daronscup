@@ -49,7 +49,8 @@ export default async function MatchesPage() {
 
   // …et, en Ligue des Champions, uniquement ceux ouverts aux pronos : tant
   // qu'un club français est en lice, on ne parie que sur ses matchs. Les autres
-  // ne sont pas listés ici (ils restent visibles dans « Résultats »).
+  // ne sont listés nulle part dans l'app (ni ici, ni sur le Hub, ni dans
+  // « Résultats ») : ce sont des scores anonymes qui noient les nôtres.
   const scope = buildBettingScope(season, allMatches);
   const matches = upcoming.filter((m) => isBettableMatch(m, scope));
   const hidden = upcoming.length - matches.length;

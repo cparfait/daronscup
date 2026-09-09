@@ -72,7 +72,7 @@ Sur l'édition 2025/26 (Marseille, PSG, Monaco), ça donne **33 matchs pronostic
 
 La règle exacte (`lib/betting.ts`) : un match est pronosticable s'il implique un club suivi, **ou** si son coup d'envoi est postérieur au dernier match connu d'un club suivi. Cette formulation est stable dans le temps — un simple « reste-t-il un club français ? » basculerait d'un coup et rendrait rétroactivement pronosticables des matchs déjà joués, ce qui fausserait les badges de journée.
 
-Le verrou est côté serveur (`POST /api/predictions`), l'onglet **Matchs** ne liste que les affiches ouvertes (avec un bandeau expliquant combien sont masquées), et le badge « L'Assidu » ne compte que les matchs pronosticables d'une journée. Liste vide = aucune restriction (cas de la Coupe du Monde).
+Le verrou est côté serveur (`POST /api/predictions`), et les matchs hors périmètre ne s'affichent **nulle part** : ni dans **Matchs**, ni dans **Résultats** (ces deux onglets indiquent en une ligne combien sont masqués, pour qu'on ne croie pas à des données manquantes), ni en match à la une du **Hub**. Seule exception : un match sur lequel on a déjà un prono reste listé dans **Résultats** — le périmètre se recalcule à chaque synchro et peut se refermer sur un match déjà joué, ce serait faire disparaître des points acquis. Le badge « L'Assidu » ne compte que les matchs pronosticables d'une journée. Liste vide = aucune restriction (cas de la Coupe du Monde).
 
 ### Basculer de saison
 

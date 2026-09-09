@@ -90,12 +90,18 @@ export default async function DashboardPage() {
   const lastPlace =
     leaderboard.length >= 2 ? leaderboard[leaderboard.length - 1] : null;
 
+  // Tout le hub se limite aux matchs ouverts aux pronos : mettre en avant un
+  // match sur lequel personne ne peut parier n'apprend rien à personne
+  // (cf. lib/betting.ts).
+  const scope = buildBettingScope(season, matches);
+  const bettable = matches.filter((m) => isBettableMatch(m, scope));
+
   // Match « à la une » : priorité au direct (LIVE en base), puis au match
   // démarré sans result (coup d'envoi passé mais l'API n'a pas encore basculé
   // en LIVE — évite de masquer le match en cours sur le hub), puis au prochain,
   // puis au dernier joué.
-  const liveMatch = matches.find((m) => m.live);
-  const ongoing = matches
+  const liveMatch = bettable.find((m) => m.live);
+  const ongoing = bettable
     .filter(
       (m) =>
         !m.result &&
@@ -103,15 +109,10 @@ export default async function DashboardPage() {
         new Date(m.kickoffAt).getTime() <= now
     )
     .sort((a, b) => +new Date(b.kickoffAt) - +new Date(a.kickoffAt))[0];
-  // À venir ET ouvert aux pronos : inutile de mettre en avant un match sur
-  // lequel le joueur ne peut pas parier (cf. lib/betting.ts).
-  const scope = buildBettingScope(season, matches);
-  const upcoming = matches
-    .filter(
-      (m) => new Date(m.kickoffAt).getTime() > now && isBettableMatch(m, scope)
-    )
+  const upcoming = bettable
+    .filter((m) => new Date(m.kickoffAt).getTime() > now)
     .sort((a, b) => +new Date(a.kickoffAt) - +new Date(b.kickoffAt));
-  const lastPlayed = matches
+  const lastPlayed = bettable
     .filter((m) => m.result)
     .sort((a, b) => +new Date(b.kickoffAt) - +new Date(a.kickoffAt))[0];
   const featuredMatch = liveMatch ?? ongoing ?? upcoming[0] ?? lastPlayed;
